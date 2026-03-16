@@ -1,9 +1,12 @@
+from pydoc import html
+
 from fastapi import FastAPI, Form, File, UploadFile
 import tempfile
 from pypdf import PdfReader
-from Services.Chat import get_context,create_vector
+from Services.Chat import get_context,create_vector,extract_image,extract_pdf,extract_html,extract_excel,extract_docx
 import requests
 from fastapi.middleware.cors import CORSMiddleware
+
 
 app = FastAPI()
 
@@ -19,14 +22,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def extract_text(pathname):
-    render = PdfReader(pathname)
+def extract_text(file_path,file_type): 
 
-    text=""
-    for page in render.pages:
-        text+=page.extract_text()
     
-    return text
+
+    if "pdf" in file_type:
+        return extract_pdf(file_path)
+    
+    elif "image" in file_type:
+        return extract_image(file_path)
+
+    elif "html" in file_type:
+        return extract_html(file_path)
+
+    elif "spreadsheet" in file_type:
+        return extract_excel(file_path)
+
+    elif "document" in file_type:
+        return extract_docx(file_path)
+    else:
+        
+        raise ValueError("Unsupported file type",file_type)
+
 
 
 @app.post("/ask")
@@ -38,14 +55,17 @@ async def ask_question(
 ):
     #save the file
 
-    with tempfile.TemporaryFile(delete=False) as temp:
-        context = await file.read()
-        temp.write(context)
-        path = temp.name
+    file_type = file.content_type
+
+    with tempfile.NamedTemporaryFile(delete=False) as temp:
+        content = await file.read()
+        temp.write(content)
+
+        file_path = temp.name
 
     #extract text from pdf
 
-    text = extract_text(path)
+    text = extract_text(file_path,file_type)
 
     print("Data extracted")
 

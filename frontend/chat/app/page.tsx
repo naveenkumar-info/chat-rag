@@ -14,7 +14,7 @@ export default function Home() {
   const submitRequest = async () => {
     setError("");
     if (!file || !question) {
-      setError("Please select a PDF file and enter a question.");
+      setError("Please select a valid file and enter a question.");
       return;
     }
     const formdata = new FormData();
@@ -51,10 +51,9 @@ export default function Home() {
         <p className="text-center text-gray-500 dark:text-gray-400 text-sm mb-4">Upload a PDF and ask any question about its content.</p>
 
         <div className="flex flex-col gap-3">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">PDF File</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Your File</label>
           <input
             ref={fileInputRef}
-            accept="application/pdf"
             type="file"
             className="file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gray-200 file:text-gray-900 hover:file:bg-gray-300 transition-colors duration-200 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-gray-500"
             onChange={(e) => setFile(e.target.files?.[0] || null)}
