@@ -1,11 +1,16 @@
 from pydoc import html
 
-from fastapi import FastAPI, Form, File, UploadFile
+from fastapi import FastAPI, Form, File, UploadFile, Depends
 import tempfile
 from pypdf import PdfReader
 from Services.Chat import get_context,create_vector,extract_image,extract_pdf,extract_html,extract_excel,extract_docx
 import requests
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+from Services.files import upload_file,delete_file
+from models import files
+from db import get_db
+
 
 
 app = FastAPI()
@@ -44,6 +49,26 @@ def extract_text(file_path,file_type):
         
         raise ValueError("Unsupported file type",file_type)
 
+
+@app.post("/uploadfile/")
+async def upload_file_DB(
+    db:Session = Depends(get_db),
+    file:UploadFile = File(...),
+    
+    
+    ):
+    return upload_file(db,file)
+
+@app.get("/files/")
+async def get_files(db:Session = Depends(get_db)):
+    return db.query(files).all()
+
+@app.delete("/files/{file_id}")
+async def delete_file_DB(
+    file_id:int,
+    db:Session = Depends(get_db)
+):
+    return delete_file(db,file_id)
 
 
 @app.post("/ask")
