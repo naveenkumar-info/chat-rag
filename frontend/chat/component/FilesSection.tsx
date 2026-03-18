@@ -39,7 +39,7 @@ export default function FilesSection() {
     }, {} as Record<string, typeof file_data>);
 
     const handleDeleteClick = (fileName: string) => {
-        setFileToDelete(fileName);
+        setFileToDelete(fileName); 
         setDeleteModalOpen(true);
     };
 
