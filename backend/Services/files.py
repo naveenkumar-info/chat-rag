@@ -6,12 +6,10 @@ from cloudinary import uploader
 
 def upload_file(db: Session, file:UploadFile):
 
-   
-
-    result = cloudinary.uploader.upload(file.file, folder="rag", resource_type="auto")
+    result = cloudinary.uploader.upload(file.file,access_mode="public", folder="rag", resource_type="auto")
 
     file_urls = result["secure_url"]
-    file_format = result["format"]
+    file_format = result.get("format") or file.filename.split(".")[-1]
     public_id = result["public_id"]  # Get public_id from Cloudinary response
 
     new_file = files(
@@ -40,7 +38,7 @@ def delete_file(db:Session,file_id:int):
         elif file_type in ["jpg","jpeg","png"]:
             resource = "image"
         else:
-            resource = "auto"
+            resource = "raw"
         print("public_id for deletion:", public_id)
         print("resource type for deletion:", resource)
 

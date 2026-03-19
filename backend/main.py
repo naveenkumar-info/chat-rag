@@ -63,7 +63,7 @@ async def upload_file_DB(
 async def get_files(db:Session = Depends(get_db)):
     return db.query(files).all()
 
-@app.delete("/files/{file_id}")
+@app.delete("/deletefiles/{file_id}")
 async def delete_file_DB(
     file_id:int,
     db:Session = Depends(get_db)

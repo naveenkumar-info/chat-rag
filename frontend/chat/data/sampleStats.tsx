@@ -1,10 +1,9 @@
 export const file_data = [
 
     {
-        "category":"pdf",
-        "name":"pdf1",
-        "pdf_file":"pdf1.pdf",
-        "date":"2024-06-01",
+        "file_type":"pdf",
+        "file_name":"pdf1.pdf",
+        "created_at":"2024-06-01",
         
     },
     {
