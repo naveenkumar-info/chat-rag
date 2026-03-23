@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from config.cloudinary import cloudinary
 from fastapi import UploadFile
 from cloudinary import uploader
+from Services.Chat import extract_html, extract_pdf, extract_docx,extract_image, extract_excel
 
 def upload_file(db: Session, file:UploadFile):
 
@@ -12,17 +13,29 @@ def upload_file(db: Session, file:UploadFile):
     file_format = result.get("format") or file.filename.split(".")[-1]
     public_id = result["public_id"]  # Get public_id from Cloudinary response
 
-    new_file = files(
-        filename=file.filename,
-        file_url=file_urls,
-        file_type=file_format,
-        public_id=public_id  # Store the public_id
-    )
+    # result = extract_pdf(file_urls)
 
-    db.add(new_file)
-    db.commit()
-    db.refresh(new_file)
-    return new_file
+    # result = extract_html(file_urls)
+
+    # result = extract_docx(file_urls)
+
+    # result = extract_excel(file_urls)
+
+    result = extract_image(file_urls)
+
+    print("Extracted text:")  # Print the first 500 characters of the extracted text for verification
+
+    # new_file = files(
+    #     filename=file.filename,
+    #     file_url=file_urls,
+    #     file_type=file_format,
+    #     public_id=public_id  # Store the public_id
+    # )
+
+    # db.add(new_file)
+    # db.commit()
+    # db.refresh(new_file)
+    return result
 
 
 def delete_file(db:Session,file_id:int):
