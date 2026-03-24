@@ -40,6 +40,7 @@ def parse_file(file_path,file_type):
     else:
         raise ValueError("Unsupported file type",file_type)
 
+from Services.Chat import extract_html, extract_pdf, extract_docx,extract_image, extract_excel
 
 def upload_file(db: Session, file:UploadFile):
 
