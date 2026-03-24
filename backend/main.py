@@ -3,7 +3,7 @@ from pydoc import html
 from fastapi import FastAPI, Form, File, UploadFile, Depends
 import tempfile
 from pypdf import PdfReader
-from Services.Chat import get_context,create_vector,extract_image,extract_pdf,extract_html,extract_excel,extract_docx
+from Services.Chat import get_context,create_vector
 import requests
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -27,27 +27,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def extract_text(file_path,file_type): 
-
-    
-
-    if "pdf" in file_type:
-        return extract_pdf(file_path)
-    
-    elif "image" in file_type:
-        return extract_image(file_path)
-
-    elif "html" in file_type:
-        return extract_html(file_path)
-
-    elif "spreadsheet" in file_type:
-        return extract_excel(file_path)
-
-    elif "document" in file_type:
-        return extract_docx(file_path)
-    else:
-        
-        raise ValueError("Unsupported file type",file_type)
 
 
 @app.post("/uploadfile/")
