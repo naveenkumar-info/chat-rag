@@ -1,22 +1,14 @@
-from pydoc import html
-
 from fastapi import FastAPI, Form, File, UploadFile, Depends
-import tempfile
-from pypdf import PdfReader
-from Services.Chat import get_context,create_vector
-import requests
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from Services.files import upload_file,delete_file
+from Services.files import upload_file,delete_file,check_chroma_size,del_all_chroma
 from models import files
 from db import get_db
 
-
-
+#instance of fastapi
 app = FastAPI()
 
-OLLAMA_API = "http://localhost:11434/api/generate"
-
+#CORS
 origins = ["http://localhost:3000","http://192.168.0.239:3000"]
 
 app.add_middleware(
@@ -27,83 +19,41 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# POST METHODS
 
-
+#uploading the fil PG + Chroma
 @app.post("/uploadfile/")
 async def upload_file_DB(
     db:Session = Depends(get_db),
     file:UploadFile = File(...),
     
-    
     ):
     return upload_file(db,file)
 
+
+# GET METHODS
+
+#get all the files
 @app.get("/files/")
 async def get_files(db:Session = Depends(get_db)):
     return db.query(files).all()
 
+#check chroma size - TESTING
+@app.get("/check-size-chroma")
+async def get_file_size(db:Session = Depends(get_db)):
+    return check_chroma_size()
+
+# DELETE METHODS
+
+#delete all chroma storage - TESTING
+@app.delete("/delete_all_chroma")
+async def delete_all_chroma():
+    return del_all_chroma()
+
+#delete files from PG using file_id
 @app.delete("/deletefiles/{file_id}")
 async def delete_file_DB(
     file_id:int,
     db:Session = Depends(get_db)
 ):
     return delete_file(db,file_id)
-
-
-@app.post("/ask")
-async def ask_question(
-
-    file:UploadFile = File(...),
-    question: str = Form(...),
-
-):
-    #save the file
-
-    file_type = file.content_type
-
-    with tempfile.NamedTemporaryFile(delete=False) as temp:
-        content = await file.read()
-        temp.write(content)
-
-        file_path = temp.name
-
-    #extract text from pdf
-
-    text = extract_text(file_path,file_type)
-
-    print("Data extracted")
-
-    #create vector DB
-    vectorstore = create_vector(text)
-
-    print("Data vectorized")
-
-    #get the relevant chunks 
-    content = get_context(vectorstore,question)
-
-    print("Data content")
-
-
-    ##prompt
-
-    prompt = f"""
-    Answer the question
-
-    Content:{content}
-
-    Question:{question}
-
-    """
-
-    #give the response
-
-    res = requests.post(
-        OLLAMA_API,
-        json={
-            "model":"llama3.2:3b",
-            "prompt":prompt,
-            "stream":False
-        }
-    )
-
-    return res.json()
