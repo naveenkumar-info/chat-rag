@@ -13,3 +13,4 @@ class files(Base):
     file_type = Column(String,nullable=False)
     public_id = Column(String, nullable=False)  # Store Cloudinary public_id for deletion
     created_at = Column(DateTime,default=datetime.utcnow)
+  
