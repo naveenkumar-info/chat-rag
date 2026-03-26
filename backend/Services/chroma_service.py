@@ -12,7 +12,8 @@ class ChromaService:
         ) #creating a httpclient 
 
         self.collection = self.client.get_or_create_collection(
-            name = "file_storage"
+            name = "file_storage",
+            metadata={"hnsw:space":"cosine"}
         )#creating a collection if not exist / getting if already there
 
     #store the embedd
@@ -44,11 +45,11 @@ class ChromaService:
         )
 
     # Now to search in the DB
-    def search(self,query_embed,top_k=5,threshold=0.9):
+    def search(self,query_embed,top_k=5,threshold=300):
 
         #we will query the search in the db
         results = self.collection.query(
-            query_embed=[query_embed],
+            query_embeddings=[query_embed],
             n_results = top_k
         )
 
@@ -58,17 +59,18 @@ class ChromaService:
 
         formatted_res = []
 
-        for doc, meta, dis in zip(documents,metadatas,distances):
-            if dis > threshold:
-                continue
+        for threshold in [300, 350]:
+            formatted_res = [
+                {"text": doc, "metadata": meta, "score": dis}
+                for doc, meta, dis in zip(documents, metadatas, distances)
+                    if dis <= threshold
+                ]
+    
+    # If we found matches, break early and don't try the higher threshold
+            if formatted_res:
+                break
 
-            formatted_res.append(
-                {
-                    "text":doc,
-                    "metadata":meta,
-                    "score":dis
-                }
-            )
+        
         return formatted_res
 
     #now lets delete 
@@ -83,5 +85,6 @@ class ChromaService:
         self.client.delete_collection("file_storage")
 
         self.collection=self.client.get_or_create_collection(
-            name="file_storage"
+            name="file_storage",
+            metadata={"hnsw:space":"cosine"}
         ) #reinit the filename after deleting

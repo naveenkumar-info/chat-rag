@@ -3,8 +3,9 @@ from sqlalchemy.orm import Session
 from config.cloudinary import cloudinary
 from fastapi import UploadFile
 from cloudinary import uploader
-from Services.Chat import embed_chunks,group_html_sections,group_by_section,chunk_files,chunk_excel_rows,parse_docx,parse_html,parse_image,parse_pdf,parse_excel
+from Services.Chat import get_embedding,embed_chunks,group_html_sections,group_by_section,chunk_files,chunk_excel_rows,parse_docx,parse_html,parse_image,parse_pdf,parse_excel
 from Services.chroma_service import ChromaService
+import requests
 
 #instance of chroma
 chroma = ChromaService()
@@ -129,4 +130,54 @@ def delete_file(db:Session,file_id:int):
 # used during testing - delete all chroma files at once
 def del_all_chroma():
     ChromaService.delete_all(chroma)
-     
+
+def get_answer(query:str):
+    query_embedd = get_embedding(query)
+
+    results = chroma.search(
+        query_embed=query_embedd,
+        top_k=5,
+        threshold=0.8
+    )
+
+    if not results:
+        return{
+            "answer":"No relevant information found",
+            "sources":[]
+        }
+    
+    context = "\n\n".join([r["text"] for r in results ])
+
+    prompt = f"""
+
+        You are a helpful AI assistant
+
+        Answer only from the given context.
+        If the answer is not present, say "I dont know"
+
+        Context:
+        {context}
+
+        Question:
+        {query}
+
+        Answer:
+
+            """
+
+    response = requests.post(
+        "http://localhost:11434/api/generate",
+        json={
+            "model":"phi3",
+            "prompt":prompt,
+            "stream":False
+        }
+    )
+
+
+    answer = response.json()
+
+    return{
+        "answer":answer,
+        "sources":results
+    }
