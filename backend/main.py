@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Form, File, UploadFile, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from Services.files import upload_file,delete_file,check_chroma_size,del_all_chroma
+from Services.files import get_answer,upload_file,delete_file,check_chroma_size,del_all_chroma
 from models import files
 from db import get_db
 
@@ -29,6 +29,10 @@ async def upload_file_DB(
     
     ):
     return upload_file(db,file)
+
+@app.post("/ask-question")
+async def ask_question(query:str = Form(...)):
+    return get_answer(query)
 
 
 # GET METHODS

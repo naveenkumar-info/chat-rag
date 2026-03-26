@@ -28,7 +28,7 @@ def get_embedding(text:str):
 #Cleaning the text
 def clean_text(text):
     return text.strip().replace("\n"," ")
-
+  
 #Only including the valid chunks to remove the noise
 def valid_chunk(text):
     return len(text) > 30
@@ -119,7 +119,6 @@ def parse_pdf(path):
     print("PDF downloaded")
 
     file_like = BytesIO(res.content)
-    
  
     elements = partition_pdf(file=file_like) 
 
