@@ -2,8 +2,9 @@ from fastapi import FastAPI, Form, File, UploadFile, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from Services.files import get_answer,upload_file,delete_file,check_chroma_size,del_all_chroma
-from models import files
-from db import get_db
+from models import files, Chat, Message
+from db import get_db,Base,create_table
+
 
 #instance of fastapi
 app = FastAPI()
@@ -19,9 +20,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.on_event("startup")
+def on_startup():
+    return create_table()
+
 # POST METHODS
 
-#uploading the fil PG + Chroma
+#uploading the file PG + Chroma
 @app.post("/uploadfile/")
 async def upload_file_DB(
     db:Session = Depends(get_db),
@@ -33,6 +38,15 @@ async def upload_file_DB(
 @app.post("/ask-question")
 async def ask_question(query:str = Form(...)):
     return get_answer(query)
+
+@app.post("/chat/create_chat")
+async def create_chat(db:Session = Depends(get_db)):
+    chat = Chat()
+    db.add(chat)
+    db.commit()
+    db.refresh(chat)
+
+    return{"chat_id":chat.id}
 
 
 # GET METHODS

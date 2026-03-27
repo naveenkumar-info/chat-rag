@@ -59,7 +59,7 @@ class ChromaService:
 
         formatted_res = []
 
-        for threshold in [300, 350]:
+        for threshold in [300, 350, 400]:
             formatted_res = [
                 {"text": doc, "metadata": meta, "score": dis}
                 for doc, meta, dis in zip(documents, metadatas, distances)
