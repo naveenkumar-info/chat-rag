@@ -137,7 +137,7 @@ def get_answer(query:str):
     results = chroma.search(
         query_embed=query_embedd,
         top_k=5,
-        threshold=0.8
+        
     )
 
     if not results:
@@ -168,7 +168,7 @@ def get_answer(query:str):
     response = requests.post(
         "http://localhost:11434/api/generate",
         json={
-            "model":"phi3",
+            "model":"llama3.2",
             "prompt":prompt,
             "stream":False
         }
