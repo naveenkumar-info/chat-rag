@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from Services.files import upload_file,delete_file,check_chroma_size,del_all_chroma
 from models import files, Chat, Message
 from db import get_db,Base,create_table
-from Services.Message import process_chat
+from Services.Message import process_chat,delete_chat
 
 
 #instance of fastapi
@@ -107,3 +107,11 @@ async def delete_file_DB(
     db:Session = Depends(get_db)
 ):
     return delete_file(db,file_id)
+
+@app.delete("/delete/{chat_id}")
+async def delete_chat_byID(
+    chat_id:int,
+    db:Session = Depends(get_db)
+):
+    return delete_chat(chat_id=chat_id,db=db)
+    

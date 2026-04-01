@@ -1,6 +1,7 @@
 "use client"
 
 import axios from "axios";
+import { Trash } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 
 type Section = 'ask' | 'statistics';
@@ -30,6 +31,8 @@ export default function Home() {
   const [chatID,setChatID] = useState("");
   const [chatModel,setChatModel] = useState(false);
   const [newChatName, setNewChatName] = useState<string>("");
+  const [deleteChatModel,setDeleteChatModel] = useState(false);
+  const [chattoDelete,setChattoDelete] = useState<Number>();
 
   
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -94,6 +97,7 @@ export default function Home() {
       const res = await axios.post("http://localhost:8000/chat/create_chat",form)
 
       console.log(res)
+      window.location.reload();
 
       
 
@@ -149,8 +153,39 @@ export default function Home() {
     }
   };
 
+  const handle_delete_chat= async () =>{
+
+    const response = await axios.delete(`http://localhost:8000/delete/${chattoDelete}`)
+    setChatID("")
+    
+
+    return response;
+  }
+
   const renderChatSection = () => (
     <div className="flex flex-col h-full max-w-4xl mx-auto w-full">
+      {
+        chatID == "" ? (
+          <div className="flex flex-col h-full max-w-4xl mx-auto w-full">
+      {/* Messages Area */}
+      <div 
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth"
+      >
+        
+          <div className="h-full flex flex-col items-center justify-center text-center opacity-50">
+            <h1 className="text-3xl font-bold mb-2">Start a Chat</h1>
+            <p>Create a chat or open an existing one to strt/resume your chats</p>
+          </div>
+        
+        
+        
+      </div>
+
+      
+    </div>
+        ):(
+      <div className="flex flex-col h-full max-w-4xl mx-auto w-full">
       {/* Messages Area */}
       <div 
         ref={scrollRef}
@@ -222,6 +257,9 @@ export default function Home() {
         </p>
       </div>
     </div>
+        )
+      }
+    </div>
   );
 
   return (
@@ -254,29 +292,42 @@ export default function Home() {
     <div className="space-y-1">
       {chats && chats.length > 0 ? (
         chats.map((chat) => (
-          <button
-            key={chat.id}
-            onClick={() => {
-              setChatID(chat.id.toString());
-              setActiveTab("ask");
-              // Logic to load this specific chat's messages would go here
-            }}
-            className={`w-full flex flex-col items-start gap-1 px-4 py-3 rounded-lg transition-all duration-200 border ${
-              chatID === chat.id.toString()
-                ? "bg-blue-600/10 border-blue-500/50 text-blue-400"
-                : "border-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-200"
-            }`}
+          <div 
+            key={chat.id} 
+            className="group  relative flex items-center w-full"
           >
-            <span className="text-sm font-medium truncate w-full text-left">
-              {chat.name || `Chat #${chat.id}`}
-            </span>
-            <span className="text-[10px] opacity-50">
-              {new Date(chat.created_at).toLocaleDateString()}
-            </span>
-          </button>
-        ))
-      ) : (
-        <p className="text-xs text-slate-600 px-2 italic">No chats found</p>
+            {/* Main Chat Selection Button */}
+            <button
+              onClick={() => {
+                setChatID(chat.id.toString());
+                
+              }}
+              className={`w-full bg-blue-500/10 border-2 flex flex-col items-start gap-1 px-4 py-3 rounded-lg transition-all duration-200 border pr-12 ${
+                chatID === chat.id.toString()
+                  ? "bg-blue-600/10 border-blue-500/50 text-blue-400"
+                  : "border-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+              }`}
+            >
+              <span className="text-sm font-medium truncate w-full text-left">
+                {chat.name || `Chat #${chat.id}`}
+              </span>
+            </button>
+
+            {/* Delete Button - Positioned absolutely on the right */}
+            <button
+              onClick={(e) => {
+                setDeleteChatModel(true)
+                setChattoDelete(chat.id)
+              }}
+              className="absolute right-2 p-2 rounded-md text-slate-500 hover:text-red-500 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-all duration-200"
+              title="Delete Chat"
+            >
+              <Trash size={16} /> 
+            </button>
+          </div>
+        )
+      ) ) : (
+        <p className="text-xs text-slate-600 px-2 italic text-center py-4">No chats found</p>
       )}
     </div>
   </div>
@@ -297,7 +348,7 @@ export default function Home() {
       </div>
 
 
-            {/* Create New Chat Modal */}
+      {/* Create New Chat Modal */}
       {chatModel && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-md p-6 rounded-2xl shadow-2xl animate-in fade-in zoom-in duration-200">
@@ -344,6 +395,49 @@ export default function Home() {
           </div>
         </div>
 )}
+
+
+      {/* Delete Chat Modal */}
+      {deleteChatModel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+  <div className="bg-slate-900 border border-slate-800 w-full max-w-sm p-6 rounded-2xl shadow-[0_0_50px_-12px_rgba(220,38,38,0.2)] animate-in fade-in zoom-in duration-200">
+    
+    {/* Warning Icon & Header */}
+    <div className="flex flex-col items-center text-center mb-6">
+      <div className="w-12 h-12 bg-red-500/10 rounded-full flex items-center justify-center mb-4">
+        <Trash size={24} className="text-red-500" />
+      </div>
+      <h3 className="text-xl font-bold text-white">Delete Chat?</h3>
+      <p className="text-slate-400 text-sm mt-2">
+        This action cannot be undone. All messages in this conversation will be permanently removed.
+      </p>
+    </div>
+
+    {/* Actions */}
+    <div className="flex flex-col sm:flex-row gap-3">
+      <button
+        onClick={() => setDeleteChatModel(false)}
+        className="flex-1 order-2 sm:order-1 py-3 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium transition-all active:scale-95"
+      >
+        Cancel
+      </button>
+      
+      <button
+        onClick={() => {
+          handle_delete_chat();
+          setDeleteChatModel(false);
+          window.location.reload();
+        }}
+        className="flex-1 order-1 sm:order-2 py-3 px-4 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold transition-all active:scale-95 shadow-lg shadow-red-900/20"
+      >
+        Delete
+      </button>
+    </div>
+  </div>
+</div>
+)}
+
+
     </div>
   );
 }
