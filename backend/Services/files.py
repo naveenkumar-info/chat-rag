@@ -131,14 +131,36 @@ def delete_file(db:Session,file_id:int):
 def del_all_chroma():
     ChromaService.delete_all(chroma)
 
-def get_answer(query:str):
+#formatting the history
+def format_history(history:list):
+    history_text=""
+
+    for msg in history:
+        role = msg["role"]
+        content = msg["content"]
+
+        if role == "user":
+            history_text+=f"User : {content}"
+        else:
+            history_text+=f"Assistant: {content}"
+
+        return history_text
+
+def get_answer(query:str,history:list):
+
+    history_text = format_history(history)
+
     query_embedd = get_embedding(query)
+
+    print("embedded completed")
 
     results = chroma.search(
         query_embed=query_embedd,
         top_k=5,
         
     )
+
+    print("result generated")
 
     if not results:
         return{
@@ -147,16 +169,19 @@ def get_answer(query:str):
         }
     
     context = "\n\n".join([r["text"] for r in results ])
-
+    print("context generated")
     prompt = f"""
 
         You are a helpful AI assistant
 
-        Answer only from the given context.
+        Answer only from the given context and the conversation provided
         If the answer is not present, say "I dont know"
 
         Context:
         {context}
+
+        Conversation:
+        {history_text}
 
         Question:
         {query}
@@ -164,6 +189,7 @@ def get_answer(query:str):
         Answer:
 
             """
+
 
     response = requests.post(
         "http://localhost:11434/api/generate",
@@ -174,8 +200,12 @@ def get_answer(query:str):
         }
     )
 
+    print("response generated")
+
 
     answer = response.json()
+
+    print("response converted into json")
 
     return{
         "answer":answer,

@@ -1,9 +1,10 @@
 from fastapi import FastAPI, Form, File, UploadFile, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from Services.files import get_answer,upload_file,delete_file,check_chroma_size,del_all_chroma
+from Services.files import upload_file,delete_file,check_chroma_size,del_all_chroma
 from models import files, Chat, Message
 from db import get_db,Base,create_table
+from Services.Message import process_chat
 
 
 #instance of fastapi
@@ -35,13 +36,19 @@ async def upload_file_DB(
     ):
     return upload_file(db,file)
 
-@app.post("/ask-question")
-async def ask_question(query:str = Form(...)):
-    return get_answer(query)
+@app.post("/get-answer")
+async def ask_question(
+    chat_id: int = Form(...),
+    question: str = Form(...),  
+    db:Session = Depends(get_db),
+):
+    return process_chat(chat_id,question,db)
 
 @app.post("/chat/create_chat")
-async def create_chat(db:Session = Depends(get_db)):
-    chat = Chat()
+async def create_chat(name:str = Form(...),db:Session = Depends(get_db)):
+    chat = Chat(
+        name=name
+    ) 
     db.add(chat)
     db.commit()
     db.refresh(chat)
@@ -60,6 +67,31 @@ async def get_files(db:Session = Depends(get_db)):
 @app.get("/check-size-chroma")
 async def get_file_size(db:Session = Depends(get_db)):
     return check_chroma_size()
+
+@app.get("/chats")
+async def get_chats(db:Session = Depends(get_db)):
+    chats = db.query(Chat).order_by(Chat.created_at.desc()).all()
+
+    return [
+        {
+            "id":c.id,
+            "name":c.name,
+            "created_at":c.created_at
+        }for c in chats
+    ]
+
+@app.get("/chat/{chat_id}")
+def get_chat(chat_id:int,db:Session = Depends(get_db)):
+    messages = db.query(Message).filter(
+        Message.chat_id == chat_id
+    ).order_by(Message.created_at).all()
+
+    return[
+        {
+            "role":m.role,
+            "content":m.content
+        }for m in messages
+    ]
 
 # DELETE METHODS
 
