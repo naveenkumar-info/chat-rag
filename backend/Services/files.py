@@ -11,83 +11,119 @@ import requests
 chroma = ChromaService()
 
 # File parsing - parse + group + chunking
-def parse_file(file_path,file_type): 
+def parse_file(file_path, file_type):
+    try:
+        # Normalize the file_type string for easier comparison
+        file_type = file_type.lower()
+        chunks = []
 
-    if "pdf" in file_type:
-        parse = parse_pdf(file_path)
-        groups = group_by_section(parse)
-        chunks = chunk_files(groups)
-        return chunks
-    
-    elif "image" in file_type:
-        parse = parse_image(file_path)
-        groups = group_by_section(parse)
-        chunks = chunk_files(groups)
+        if "pdf" in file_type:
+            parse = parse_pdf(file_path)
+            groups = group_by_section(parse)
+            chunks = chunk_files(groups)
+        
+        elif "image" in file_type:
+            parse = parse_image(file_path)
+            groups = group_by_section(parse)
+            chunks = chunk_files(groups)
+
+        elif "html" in file_type:
+            parse = parse_html(file_path)
+            groups = group_html_sections(parse)
+            chunks = chunk_files(groups)
+
+        elif "spreadsheet" in file_type:
+            parse = parse_excel(file_path)
+            chunks = chunk_excel_rows(parse)
+
+        elif "document" in file_type:
+            parse = parse_docx(file_path)
+            groups = group_by_section(parse)
+            chunks = chunk_files(groups)
+            
+        else:
+            print(f"Unsupported file type encountered: {file_type}")
+            raise ValueError(f"Unsupported file type: {file_type}")
+
+        # Return the processed chunks if successfully generated
         return chunks
 
-    elif "html" in file_type:
-        parse = parse_html(file_path)
-        groups = group_html_sections(parse)
-        chunks = chunk_files(groups)
-        return chunks
+    except Exception as e:
+        # Standardized error logging for any failure in the parsing pipeline
+        print(f"Error in parse_file pipeline: {str(e)}")
+        # Re-raising for the service layer to handle the specific failure
+        raise Exception(f"File parsing failed: {str(e)}")
 
-    elif "spreadsheet" in file_type:
-        parse = parse_excel(file_path)
-        chunks = chunk_excel_rows(parse)
-        return chunks
-
-    elif "document" in file_type:
-        parse = parse_docx(file_path)
-        groups = group_by_section(parse)
-        chunks = chunk_files(groups)
-        return chunks
-    else:
-        raise ValueError("Unsupported file type",file_type)
-    
 # uploading the file - PG + CHROMA + Cloudinary
-def upload_file(db: Session, file:UploadFile):
-    # storing file in cloudinary
-    result = cloudinary.uploader.upload(file.file,access_mode="public", folder="rag", resource_type="auto")
+def upload_file(db: Session, file: UploadFile):
+    try:
+        # 1. Store file in Cloudinary
+        # Using a timeout or specific error handling for network calls
+        result = cloudinary.uploader.upload(
+            file.file, 
+            access_mode="public", 
+            folder="rag", 
+            resource_type="auto"
+        )
 
-    # retrieving url,format and id
-    file_urls = result["secure_url"]
-    file_format = result.get("format") or file.filename.split(".")[-1]
-    public_id = result["public_id"]
+        # 2. Retrieve URL, format, and ID
+        file_url = result.get("secure_url")
+        file_format = (result.get("format") or file.filename.split(".")[-1]).lower()
+        public_id = result.get("public_id")
 
-    # identifying the file type
-    if file_format in ["pdf"]:
-        resource = "pdf"
-    elif file_format in ["jpg","jpeg","png"]:
-        resource = "image"
-    elif file_format in ["docx"]:
-        resource = "document"
-    elif file_format in ["xlsx"]:
-        resource = "spreadsheet"
-    else:
-        resource= "html"
+        if not file_url or not public_id:
+            raise ValueError("Cloudinary upload failed to return necessary file data")
 
-    # new file added in pg DB
-    new_file = files(
-        filename=file.filename,
-        file_url=file_urls,
-        file_type=file_format,
-        public_id=public_id  
-    )
+        # 3. Identify the resource category for the parser
+        if file_format in ["pdf"]:
+            resource = "pdf"
+        elif file_format in ["jpg", "jpeg", "png"]:
+            resource = "image"
+        elif file_format in ["docx"]:
+            resource = "document"
+        elif file_format in ["xlsx"]:
+            resource = "spreadsheet"
+        else:
+            resource = "html"
 
-    db.add(new_file)
-    db.commit()
-    db.refresh(new_file)
+        # 4. Save file metadata to Postgres
+        new_file = files(
+            filename=file.filename,
+            file_url=file_url,
+            file_type=file_format,
+            public_id=public_id  
+        )
 
-    # parsed
-    parsed_data = parse_file(file_urls,resource)
-    # embedd
-    embeddings = embed_chunks(parsed_data)
-    # stored in the chromaDB 
-    ChromaService.store(chroma,embeddings,new_file.id)
+        db.add(new_file)
+        db.commit()
+        db.refresh(new_file)
 
+        # 5. RAG Pipeline: Parse, Embed, and Store in ChromaDB
+        try:
+            # Parse the file content from the URL
+            parsed_data = parse_file(file_url, resource)
+            
+            # Generate vector embeddings
+            embeddings = embed_chunks(parsed_data)
+            
+            # Store in ChromaDB using the Postgres file ID as a reference
+            if embeddings:
+                chroma.store(embeddings, new_file.id)
+            else:
+                print(f"Warning: No embeddings generated for file_id {new_file.id}")
 
+        except Exception as pipeline_error:
+            print(f"Error in RAG pipeline processing: {str(pipeline_error)}")
+            # We don't necessarily want to crash the whole upload if just the vector storage fails,
+            # but you can choose to re-raise here if RAG is mandatory.
 
-    return new_file
+        return new_file
+
+    except Exception as e:
+        # Rollback the DB session if an error occurred during the Postgres transaction
+        db.rollback()
+        print(f"Error in upload_file: {str(e)}")
+        raise Exception(f"File upload and processing failed: {str(e)}")
 
 # Used during testing to know chroma upload / delete are working
 def check_chroma_size():
@@ -95,119 +131,156 @@ def check_chroma_size():
 
     return size
 
+
 # Delete files from PG + CHROMA using file_id created in the PG and stored in the chroma metadata
-def delete_file(db:Session,file_id:int):
+def delete_file(db: Session, file_id: int):
+    try:
+        # 1. Fetch the file record from Postgres
+        file = db.query(files).filter(files.id == file_id).first()
 
-    #get the file by id
-    file = db.query(files).filter(files.id == file_id).first()
+        if not file:
+            raise ValueError(f"File with id {file_id} not found")
 
-    if file:
-        # Use the stored public_id from the database to delete from cloudinary
-        public_id = file.public_id
-        file_type = file.file_type
+        # 2. Determine Cloudinary resource type
+        # Cloudinary uses 'raw' for PDF, DOCX, and XLSX, and 'image' for photos
+        file_type = file.file_type.lower() if file.file_type else ""
         
-        if file_type in ["pdf","docx","xlsx"]:
-            resource = "raw"
-        elif file_type in ["jpg","jpeg","png"]:
+        if file_type in ["jpg", "jpeg", "png"]:
             resource = "image"
         else:
             resource = "raw"
 
-        #Deleting from cloudinary
-        cloudinary.uploader.destroy(public_id, resource_type=resource)
+        # 3. Delete from Cloudinary
+        try:
+            cloudinary.uploader.destroy(file.public_id, resource_type=resource)
+        except Exception as cloud_e:
+            print(f"Warning: Cloudinary deletion failed: {str(cloud_e)}")
 
-        #Deleting from the chroma
-        ChromaService.delete(chroma,file_id)
+        # 4. Delete from ChromaDB (Vector Store)
+        try:
+            chroma.delete(file_id)
+        except Exception as chroma_e:
+            print(f"Warning: ChromaDB deletion failed: {str(chroma_e)}")
 
-        #Deleting from the PG
+        # 5. Delete from Postgres
         db.delete(file)
         db.commit()
         
-        return {"message": "File deleted successfully"}
-    else:
-        raise ValueError("File not found")
-    
+        return {"message": "File and associated data deleted successfully"}
+
+    except Exception as e:
+        # Rollback Postgres transaction if the database delete fails
+        db.rollback()
+        print(f"Error in delete_file: {str(e)}")
+        raise Exception(f"Failed to delete file: {str(e)}")
+
 # used during testing - delete all chroma files at once
 def del_all_chroma():
     ChromaService.delete_all(chroma)
 
+
 #formatting the history
-def format_history(history:list):
-    history_text=""
+def format_history(history: list):
+    try:
+        if not isinstance(history, list):
+            raise ValueError("History must be a list")
 
-    for msg in history:
-        role = msg["role"]
-        content = msg["content"]
+        history_text = ""
+        for msg in history:
+            try:
+                # Safely extract role and content
+                role = msg.get("role", "unknown")
+                content = msg.get("content", "")
 
-        if role == "user":
-            history_text+=f"User : {content}"
-        else:
-            history_text+=f"Assistant: {content}"
+                if not content:
+                    continue
 
+                if role == "user":
+                    history_text += f"User: {content}\n"
+                else:
+                    history_text += f"Assistant: {content}\n"
+            
+            except Exception as inner_e:
+                print(f"Error processing message in history: {str(inner_e)}")
+                continue
+                
         return history_text
 
-def get_answer(query:str,history:list):
+    except Exception as e:
+        print(f"Error in format_history: {str(e)}")
+        return ""
 
-    history_text = format_history(history)
-
-    query_embedd = get_embedding(query)
-
-    print("embedded completed")
-
-    results = chroma.search(
-        query_embed=query_embedd,
-        top_k=5,
+def get_answer(query: str, history: list):
+    try:
+        # 1. Prepare conversation history and query embedding
+        history_text = format_history(history)
+        query_embedd = get_embedding(query)
         
-    )
+        # 2. Search ChromaDB with safety check
+        results = []
+        try:
+            results = chroma.search(query_embed=query_embedd, top_k=5)
+        except Exception as search_e:
+            print(f"ChromaDB search failed: {str(search_e)}")
+        
+        # 3. Build context string
+        if results:
+            context = "\n\n".join([r.get("text", "") for r in results if r.get("text")])
+        else:
+            context = "No additional file context found."
 
-    print("result generated")
+        # 4. Unified Prompt Construction
+        prompt = f"""
+        You are a knowledgeable AI assistant.
 
-    if not results:
-        return{
-            "answer":"No relevant information found",
-            "sources":[]
-        }
-    
-    context = "\n\n".join([r["text"] for r in results ])
-    print("context generated")
-    prompt = f"""
+        Use the provided Context and the Conversation History to answer the User's question.
+        If the User's question uses pronouns like "it", "that", or "they", look at the Conversation History to understand what they are referring to.
 
-        You are a helpful AI assistant
-
-        Answer only from the given context and the conversation provided
-        If the answer is not present, say "I dont know"
-
-        Context:
+        CONTEXT FROM FILES:
         {context}
 
-        Conversation:
+        CONVERSATION HISTORY:
         {history_text}
 
-        Question:
+        USER'S NEW QUESTION:
         {query}
 
-        Answer:
+        ANSWER:
+        """
 
-            """
+        # 5. Request to Local LLM (Ollama)
+        try:
+            response = requests.post(
+                "http://localhost:11434/api/generate",
+                json={
+                    "model": "llama3.2",
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.7,
+                        "num_ctx": 4096
+                    }
+                },
+                timeout=60 # Added timeout for long LLM generations
+            )
+            response.raise_for_status()
+            
+            # Extract only the response text from Ollama's JSON
+            llm_data = response.json()
+            answer_text = llm_data.get("response", "No response generated by the model.")
 
+        except Exception as llm_e:
+            print(f"LLM generation failed: {str(llm_e)}")
+            answer_text = "I'm sorry, I encountered an error while generating an answer."
 
-    response = requests.post(
-        "http://localhost:11434/api/generate",
-        json={
-            "model":"llama3.2",
-            "prompt":prompt,
-            "stream":False
+        return {
+            "answer": answer_text,
+            "sources": results
         }
-    )
 
-    print("response generated")
-
-
-    answer = response.json()
-
-    print("response converted into json")
-
-    return{
-        "answer":answer,
-        "sources":results
-    }
+    except Exception as e:
+        print(f"Error in get_answer: {str(e)}")
+        return {
+            "answer": "An internal error occurred while processing your request.",
+            "sources": []
+        }
