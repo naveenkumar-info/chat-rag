@@ -1,5 +1,6 @@
 from models import Chat,Message
-from Services.files import get_answer
+from Services.files import get_answer_stream
+from sqlalchemy.orm import Session
 
 def save_message(db: Session, chat_id: int, role: str, content: str):
     try:
@@ -55,46 +56,32 @@ def get_chat_history(db: Session, chat_id: int):
         # Return an empty list to prevent the calling function from crashing
         return []
 
-def process_chat(chat_id, question, db: Session):
+from fastapi.responses import StreamingResponse
+
+async def process_chat_stream(chat_id, question, db: Session):
     try:
-        # 1. Persist the user's question to the database
+        # 1. Save user message immediately (while session is definitely open)
         save_message(db, chat_id, "user", question)
         
-        # 2. Retrieve the updated chat history for context
+        # 2. Get history immediately
         history = get_chat_history(db, chat_id)
-        
-        # 3. Generate answer from the RAG pipeline
-        # get_answer handles embedding, vector search, and the LLM call
-        raw_result = get_answer(query=question, history=history)
 
-        # 4. Extract the textual response safely
-        # Handles cases where get_answer returns either a raw string or a dict
-        raw_answer_field = raw_result.get("answer")
+        async def stream_generator():
+            full_answer = ""
+            async for token in get_answer_stream(question, history):
+                print("token : ",token)
+                full_answer += token
+                yield token
+            
+            if full_answer:
+                # IMPORTANT: Re-verify session or use a local scoped session if this fails
+                save_message(db, chat_id, "assistant", full_answer)
 
-        if isinstance(raw_answer_field, dict):
-            # Extract from Ollama's nested 'response' key if it's a dictionary
-            answer_text = raw_answer_field.get("response", "No response text found")
-        elif isinstance(raw_answer_field, str):
-            # Use the string directly if already extracted by the helper
-            answer_text = raw_answer_field
-        else:
-            answer_text = "I couldn't process the AI response."
-
-        # 5. Persist the assistant's response to the database
-        save_message(db, chat_id, "assistant", answer_text)
-        
-        return {
-            "answer": answer_text,
-            "sources": raw_result.get("sources", [])
-        }
+        return StreamingResponse(stream_generator(), media_type="text/event-stream")
 
     except Exception as e:
-        # 6. Standardized error logging for the main chat orchestration
-        print(f"Error in process_chat: {str(e)}")
-        # Provide a safe fallback response to the user
-        error_msg = "An error occurred while processing your message."
-        return {"answer": error_msg, "sources": []}
-
+        print(f"Initial Error: {str(e)}")
+        return {"error": str(e)}
 def delete_chat(chat_id, db: Session):
     try:
         # 1. Fetch the chat record from the database
