@@ -55,8 +55,10 @@ def parse_file(file_path, file_type):
         raise Exception(f"File parsing failed: {str(e)}")
 
 # uploading the file - PG + CHROMA + Cloudinary
-def upload_file(db: Session, file: UploadFile):
+async def upload_file(db: Session, file: UploadFile):
     try:
+        print("hi")
+        file.file.seek(0)
         # 1. Store file in Cloudinary
         # Using a timeout or specific error handling for network calls
         result = cloudinary.uploader.upload(
@@ -95,35 +97,28 @@ def upload_file(db: Session, file: UploadFile):
         )
 
         db.add(new_file)
-        db.commit()
+        db.flush()  # <--- Get the ID without fully committing yet
+        db.commit() 
         db.refresh(new_file)
 
         # 5. RAG Pipeline: Parse, Embed, and Store in ChromaDB
         try:
-            # Parse the file content from the URL
-            parsed_data = parse_file(file_url, resource)
+            # parse_file is SYNC, so we run it in a thread to prevent blocking the server
+            loop = asyncio.get_running_loop()
+            parsed_data = await loop.run_in_executor(None, lambda: parse_file(file_url, resource))
             
-            # Generate vector embeddings
-            embeddings = embed_chunks(parsed_data)
+            embeddings = await embed_chunks(parsed_data)
             
-            # Store in ChromaDB using the Postgres file ID as a reference
             if embeddings:
-                chroma.store(embeddings, new_file.id)
-            else:
-                print(f"Warning: No embeddings generated for file_id {new_file.id}")
-
+                # YOU ALREADY MADE THIS ASYNC, GOOD!
+                await chroma.store(embeddings, new_file.id)
         except Exception as pipeline_error:
-            print(f"Error in RAG pipeline processing: {str(pipeline_error)}")
-            # We don't necessarily want to crash the whole upload if just the vector storage fails,
-            # but you can choose to re-raise here if RAG is mandatory.
-
+            print(f"RAG Error: {pipeline_error}")
         return new_file
 
     except Exception as e:
-        # Rollback the DB session if an error occurred during the Postgres transaction
         db.rollback()
-        print(f"Error in upload_file: {str(e)}")
-        raise Exception(f"File upload and processing failed: {str(e)}")
+        raise e
 
 # Used during testing to know chroma upload / delete are working
 def check_chroma_size():
@@ -180,107 +175,140 @@ def del_all_chroma():
 
 
 #formatting the history
-def format_history(history: list):
-    try:
-        if not isinstance(history, list):
-            raise ValueError("History must be a list")
-
-        history_text = ""
-        for msg in history:
-            try:
-                # Safely extract role and content
-                role = msg.get("role", "unknown")
-                content = msg.get("content", "")
-
-                if not content:
-                    continue
-
-                if role == "user":
-                    history_text += f"User: {content}\n"
-                else:
-                    history_text += f"Assistant: {content}\n"
-            
-            except Exception as inner_e:
-                print(f"Error processing message in history: {str(inner_e)}")
-                continue
-                
-        return history_text
-
-    except Exception as e:
-        print(f"Error in format_history: {str(e)}")
+def format_history(history: list, max_chars: int = 6000):
+    if not history:
         return ""
+    
+    formatted_parts = []
+    current_chars = 0
+    
+    # Iterate backwards to keep the MOST RECENT messages
+    for msg in reversed(history):
+        role = getattr(msg, 'role', None) or msg.get('role', 'unknown')
+        content = getattr(msg, 'content', None) or msg.get('content', '')
+        
+        if not content: continue
+        
+        entry = f"{'User' if role == 'user' else 'Assistant'}: {content}"
+        
+        # Check if adding this message exceeds our safety cap
+        if current_chars + len(entry) > max_chars:
+            break
+            
+        formatted_parts.append(entry)
+        current_chars += len(entry)
+    
+    # Flip back to correct chronological order
+    return "\n".join(reversed(formatted_parts))
 
-def get_answer(query: str, history: list):
+
+async def summarize_history(old_messages: list):
+    if not old_messages:
+        return ""
+    
+    # Format the old stuff for the summarizer
+    text_to_summarize = "\n".join([
+        f"{'User' if getattr(m, 'role', 'user') == 'user' else 'Assistant'}: {getattr(m, 'content', '')}"
+        for m in old_messages
+    ])
+
+    summary_prompt = f"Summarize the following chat history in 3-4 concise sentences, focusing on the key topics discussed:\n\n{text_to_summarize}"
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            "http://localhost:11434/api/generate",
+            json={
+                "model": "llama3.2",
+                "prompt": summary_prompt,
+                "stream": False # We want the whole summary at once
+            }
+        )
+        result = response.json()
+        return result.get("response", "Conversation about various topics.")
+    
+
+
+import httpx
+import json
+import asyncio
+async def get_answer_stream(query: str, history: list):
     try:
-        # 1. Prepare conversation history and query embedding
-        history_text = format_history(history)
-        query_embedd = get_embedding(query)
-        
-        # 2. Search ChromaDB with safety check
-        results = []
-        try:
-            results = chroma.search(query_embed=query_embedd, top_k=5)
-        except Exception as search_e:
-            print(f"ChromaDB search failed: {str(search_e)}")
-        
-        # 3. Build context string
-        if results:
-            context = "\n\n".join([r.get("text", "") for r in results if r.get("text")])
+        # 1. SMART HISTORY LOGIC (Summarization)
+        if len(history) > 6:
+            old_stuff = history[:-3]
+            recent_stuff = history[-3:]
+            summary = await summarize_history(old_stuff)
+            formatted_recent = format_history(recent_stuff)
+            history_context = f"Summary of previous conversation: {summary}\n\nRecent messages:\n{formatted_recent}"
         else:
-            context = "No additional file context found."
+            history_context = format_history(history)
 
-        # 4. Unified Prompt Construction
+        # 2. DATABASE SEARCH (RAG)
+        query_embedd = await get_embedding(query)
+        # print("query",query_embedd)
+        loop = asyncio.get_running_loop()
+        # Chroma search
+        results = await loop.run_in_executor(None, lambda: chroma.search(query_embed=query_embedd, top_k=3))
+        print("filee resultsssssss",results)
+        # Check if we actually found any relevant text in the files
+        file_context = "\n\n".join([r.get("text", "") for r in results if r.get("text")])
+        print("filee contextttt",file_context)
+        
+
+        # 3. STRICT SYSTEM PROMPT
+        # We use a clear delimiter and explicit "None" handling
+        # --- BALANCED CONTEXTUAL PROMPT ---
+        # --- BALANCED CONTEXTUAL PROMPT ---
         prompt = f"""
-        You are a knowledgeable AI assistant.
+        ### ROLE ###
+        You are a helpful assistant that answers questions STRICTLY based on the provided documents.
 
-        Use the provided Context and the Conversation History to answer the User's question.
-        If the User's question uses pronouns like "it", "that", or "they", look at the Conversation History to understand what they are referring to.
+        ### INSTRUCTIONS ###
+        1. Answer the USER'S QUESTION using ONLY the information found in the "CONTEXT FROM FILES" provided below.
+        2. You are allowed to understand synonyms and related concepts, but the core information MUST originate from the context.
+        3. If the answer to the user's question is not explicitly present in the provided context, or if the context says "No relevant documents found," you must say: "I am sorry, but the provided context does not contain information to answer this question."
+        4. Do NOT use any outside knowledge or provide information that is not supported by the context.
+        5. Do not mention that you are using provided documents or refer to the context; just answer naturally.
+        6. If the answer is in the context, provide a detailed response based on that information.
 
-        CONTEXT FROM FILES:
-        {context}
+        ### CONTEXT FROM FILES ###
+        {file_context if file_context.strip() else "No relevant documents found."}
 
-        CONVERSATION HISTORY:
-        {history_text}
+        ### CONVERSATION HISTORY ###
+        {history_context}
 
-        USER'S NEW QUESTION:
+        ### USER'S QUESTION ###
         {query}
 
-        ANSWER:
+        ### FINAL ANSWER ###
         """
+        print(prompt)
 
-        # 5. Request to Local LLM (Ollama)
-        try:
-            response = requests.post(
+        # 4. STREAM FROM OLLAMA (Lower Temperature for Strictness)
+        async with httpx.AsyncClient(timeout=None) as client:
+            async with client.stream(
+                "POST", 
                 "http://localhost:11434/api/generate",
                 json={
                     "model": "llama3.2",
                     "prompt": prompt,
-                    "stream": False,
+                    "stream": True,
                     "options": {
-                        "temperature": 0.7,
-                        "num_ctx": 4096
+                        "num_ctx": 4096, 
+                        "stop": ["###", "USER:", "Assistant:"] # Prevents the AI from hallucinating extra dialogue
                     }
-                },
-                timeout=60 # Added timeout for long LLM generations
-            )
-            response.raise_for_status()
-            
-            # Extract only the response text from Ollama's JSON
-            llm_data = response.json()
-            answer_text = llm_data.get("response", "No response generated by the model.")
-
-        except Exception as llm_e:
-            print(f"LLM generation failed: {str(llm_e)}")
-            answer_text = "I'm sorry, I encountered an error while generating an answer."
-
-        return {
-            "answer": answer_text,
-            "sources": results
-        }
+                }
+            ) as response:
+                async for line in response.aiter_lines():
+                    if not line: continue
+                    chunk = json.loads(line)
+                    token = chunk.get("response", "")
+                    if token:
+                        yield token
+                    if chunk.get("done"): 
+                        break
 
     except Exception as e:
-        print(f"Error in get_answer: {str(e)}")
-        return {
-            "answer": "An internal error occurred while processing your request.",
-            "sources": []
-        }
+        yield f"[Streaming Error: {str(e)}]"  
+
+

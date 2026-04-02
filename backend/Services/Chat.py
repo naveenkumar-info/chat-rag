@@ -10,32 +10,35 @@ from io import BytesIO
 from unstructured.partition.image import partition_image
 
 # Extracting the embedding
-def get_embedding(text: str):
+import httpx
+
+async def get_embedding(text: str):
     try:
-        response = requests.post(
-            "http://localhost:11434/api/embeddings",
-            json={
-                "model": "nomic-embed-text",
-                "prompt": text
-            },
-            timeout=10
-        )
-        
-        # Raises an HTTPError if the status is 4xx or 5xx
-        response.raise_for_status()
-        
-        result = response.json()
-        
-        if "embedding" not in result:
-            raise ValueError("Response does not contain embedding data")
+        # We use an async context manager for the HTTP client
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(
+                "http://localhost:11434/api/embeddings",
+                json={
+                    "model": "nomic-embed-text",
+                    "prompt": text
+                }
+            )
             
-        return result["embedding"]
+            # Raises an exception for 4xx/5xx errors
+            response.raise_for_status()
+            
+            result = response.json()
+            
+            if "embedding" not in result:
+                raise ValueError("Ollama response does not contain embedding data")
+                
+            return result["embedding"]
 
     except Exception as e:
-        # Log the error and re-raise it for the calling function to handle
         print(f"Error in get_embedding: {str(e)}")
-        raise Exception(f"Failed to generate embedding: {str(e)}")
-
+        # It's better to return None or an empty list so the search can handle it 
+        # instead of crashing the whole stream
+        return None
 #Cleaning the text
 def clean_text(text):
     return text.strip().replace("\n"," ")
@@ -118,7 +121,7 @@ def chunk_files(text):
         return []
 
 #Embedding all the chunks
-def embed_chunks(chunks, batch_size=5):
+async def embed_chunks(chunks, batch_size=5):
     try:
         if not isinstance(chunks, list):
             raise ValueError("Input chunks must be a list")
@@ -140,7 +143,7 @@ def embed_chunks(chunks, batch_size=5):
                     if not valid_chunk(text):
                         continue
 
-                    embedding = get_embedding(text)
+                    embedding = await get_embedding(text)
 
                     embedded.append({
                         "text": text,

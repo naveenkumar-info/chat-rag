@@ -1,7 +1,7 @@
 import chromadb
 import os
 import uuid
-
+import asyncio
 class ChromaService:
 
     #init the chromaDB
@@ -30,7 +30,7 @@ class ChromaService:
    
    
     #store the embedd
-    def store(self, embed_chunks, file_id):
+    async def store(self, embed_chunks, file_id):
         try:
             if not embed_chunks:
                 print("No chunks provided to store")
@@ -66,11 +66,16 @@ class ChromaService:
 
             # Final check to ensure we have data before calling ChromaDB
             if documents:
-                self.collection.add(
-                    documents=documents,
-                    embeddings=embeddings,
-                    metadatas=metadatas,
-                    ids=ids
+                loop = asyncio.get_running_loop()
+                # Run the blocking Chroma call in a separate thread
+                await loop.run_in_executor(
+                    None, 
+                    lambda: self.collection.add(
+                        documents=documents,
+                        embeddings=embeddings,
+                        metadatas=metadatas,
+                        ids=ids
+                    )
                 )
             else:
                 print("No valid data found to add to collection")
@@ -80,44 +85,34 @@ class ChromaService:
             raise Exception(f"Failed to store documents in ChromaDB: {str(e)}")
 
 
-    # Now to search in the DB
-    def search(self, query_embed, top_k=5, threshold=300):
+ # Inside ChromaService.search
+    def search(self, query_embed, top_k=5):
         try:
-            # 1. Query the vector database
             results = self.collection.query(
                 query_embeddings=[query_embed],
                 n_results=top_k
             )
 
-            # 2. Extract results with safety defaults to prevent indexing errors
+            
+
             documents = results.get("documents", [[]])[0]
-            metadatas = results.get("metadatas", [[]])[0]
             distances = results.get("distances", [[]])[0]
+            metadatas = results.get("metadatas", [[]])[0]
+
+            print("results,docs",documents)
+            print("results,dis",distances)
+            # print("results,meta",metadatas)
 
             formatted_res = []
-
-            # 3. Progressive thresholding logic
-            # Using try-except inside the loop to handle potential data mismatches
-            for current_threshold in [300, 350, 400]:
-                try:
-                    formatted_res = [
-                        {"text": doc, "metadata": meta, "score": dis}
-                        for doc, meta, dis in zip(documents, metadatas, distances)
-                        if dis <= current_threshold
-                    ]
-                    
-                    # If we found matches at this threshold, stop and return them
-                    if formatted_res:
-                        break
-                except Exception as loop_e:
-                    print(f"Error during result filtering: {str(loop_e)}")
-                    continue
-
+            # Cosine distance: 0.1 is very close, 0.8 is loose.
+            # Let's use 0.9 as a safe "catch-all" for now.
+            for doc, meta, dis in zip(documents, metadatas, distances):
+                if dis <= 400: 
+                    formatted_res.append({"text": doc, "metadata": meta, "score": dis})
+            print("formatted result",formatted_res)
             return formatted_res
-
         except Exception as e:
-            # Standardized error logging for database or logic failures
-            print(f"Error in search method: {str(e)}")
+            print(f"Search Error: {e}")
             return []
  
  

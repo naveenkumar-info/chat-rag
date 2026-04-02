@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 from Services.files import upload_file,delete_file,check_chroma_size,del_all_chroma
 from models import files, Chat, Message
 from db import get_db,Base,create_table
-from Services.Message import process_chat,delete_chat
-
+from Services.Message import delete_chat,process_chat_stream
+import asyncio
 
 #instance of fastapi
 app = FastAPI()
@@ -34,15 +34,16 @@ async def upload_file_DB(
     file:UploadFile = File(...),
     
     ):
-    return upload_file(db,file)
+    return await upload_file(db,file)
 
 @app.post("/get-answer")
 async def ask_question(
     chat_id: int = Form(...),
     question: str = Form(...),  
-    db:Session = Depends(get_db),
+    db: Session = Depends(get_db),
 ):
-    return process_chat(chat_id,question,db)
+    # Return the streaming process directly
+    return await process_chat_stream(chat_id, question, db)
 
 @app.post("/chat/create_chat")
 async def create_chat(name:str = Form(...),db:Session = Depends(get_db)):
@@ -106,7 +107,8 @@ async def delete_file_DB(
     file_id:int,
     db:Session = Depends(get_db)
 ):
-    return delete_file(db,file_id)
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, lambda: delete_file(db, file_id))
 
 @app.delete("/delete/{chat_id}")
 async def delete_chat_byID(
