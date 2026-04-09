@@ -8,8 +8,8 @@ class ChromaService:
     def __init__(self):
         try:
             # 1. Initialize the ChromaDB HTTP client
-            host = os.getenv("CHROMA_HOST", "localhost")
-            port = int(os.getenv("CHROMA_PORT", 8001)) # Ensure port is an integer
+            host = os.getenv("CHROMA_HOST", "chroma")
+            port = int(os.getenv("CHROMA_PORT", 8000)) # Ensure port is an integer
             
             self.client = chromadb.HttpClient(
                 host=host,
@@ -87,11 +87,14 @@ class ChromaService:
 
  # Inside ChromaService.search
     def search(self, query_embed, top_k=5):
+        print("in chroma search")
         try:
             results = self.collection.query(
                 query_embeddings=[query_embed],
                 n_results=top_k
             )
+
+            print(results)
 
             
 

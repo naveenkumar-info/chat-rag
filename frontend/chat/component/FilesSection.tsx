@@ -95,8 +95,6 @@ export default function FilesSection() {
 
         const formData = new FormData();
         
-
-
         if (selectedFile) {
             console.log(`Uploading file: ${selectedFile.name}`);
             formData.append('file', selectedFile);
@@ -118,10 +116,6 @@ export default function FilesSection() {
 
 
     }
-
-    
-    
-
     
     const  handleDeleteClick = async (file_id: Number) => {
 

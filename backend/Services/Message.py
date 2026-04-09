@@ -62,11 +62,16 @@ async def process_chat_stream(chat_id, question, db: Session):
     try:
         # 1. Save user message immediately (while session is definitely open)
         save_message(db, chat_id, "user", question)
+
+        print("save msg for user")
         
         # 2. Get history immediately
         history = get_chat_history(db, chat_id)
 
+        print("get chat his")
+
         async def stream_generator():
+            print("stream gen")
             full_answer = ""
             async for token in get_answer_stream(question, history):
                 print("token : ",token)

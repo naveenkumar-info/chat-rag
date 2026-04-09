@@ -205,7 +205,7 @@ def format_history(history: list, max_chars: int = 6000):
 async def summarize_history(old_messages: list):
     if not old_messages:
         return ""
-    
+    print("sum hist")
     # Format the old stuff for the summarizer
     text_to_summarize = "\n".join([
         f"{'User' if getattr(m, 'role', 'user') == 'user' else 'Assistant'}: {getattr(m, 'content', '')}"
@@ -216,7 +216,7 @@ async def summarize_history(old_messages: list):
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.post(
-            "http://localhost:11434/api/generate",
+            "http://ollama:11434/api/generate",
             json={
                 "model": "llama3.2",
                 "prompt": summary_prompt,
@@ -233,6 +233,7 @@ import json
 import asyncio
 async def get_answer_stream(query: str, history: list):
     try:
+        print("get ans ste")
         # 1. SMART HISTORY LOGIC (Summarization)
         if len(history) > 6:
             old_stuff = history[:-3]
@@ -243,8 +244,11 @@ async def get_answer_stream(query: str, history: list):
         else:
             history_context = format_history(history)
 
+        print("format his")
+
         # 2. DATABASE SEARCH (RAG)
         query_embedd = await get_embedding(query)
+        print("embdded")
         # print("query",query_embedd)
         loop = asyncio.get_running_loop()
         # Chroma search
@@ -288,7 +292,7 @@ async def get_answer_stream(query: str, history: list):
         async with httpx.AsyncClient(timeout=None) as client:
             async with client.stream(
                 "POST", 
-                "http://localhost:11434/api/generate",
+                "http://ollama:11434/api/generate",
                 json={
                     "model": "llama3.2",
                     "prompt": prompt,
