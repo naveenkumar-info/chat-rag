@@ -36,9 +36,11 @@ export default function Home() {
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  const NEXT_API_URL = process.env.NEXT_PUBLIC_API_URL;
+
   const get_chats = async () => {
     try {
-      const res = await axios.get("http://localhost:8000/chats");
+      const res = await axios.get(`${NEXT_API_URL}/chats`);
       setChats(res.data);
     } catch (error) {
       console.log("error in getting the chats", error);
@@ -53,7 +55,7 @@ export default function Home() {
     if (!chatID) return;
     setLoading(true);
     try {
-      const res = await axios.get(`http://localhost:8000/chat/${chatID}`);
+      const res = await axios.get(`${NEXT_API_URL}/chat/${chatID}`);
       setMessages(res.data);
     } catch (error) {
       console.log("error fetching chat", error);
@@ -70,7 +72,7 @@ export default function Home() {
       const form = new FormData();
       form.append("name", newChatName);
       setChatModel(false);
-      await axios.post("http://localhost:8000/chat/create_chat", form);
+      await axios.post(`${NEXT_API_URL}/chat/create_chat`, form);
       window.location.reload();
     } catch (error) {
       console.log("error creating new chat", error);
@@ -98,7 +100,7 @@ export default function Home() {
     formdata.append("question", currentQuery);
 
     try {
-      const response = await fetch("http://localhost:8000/get-answer", {
+      const response = await fetch(`${NEXT_API_URL}/get-answer`, {
         method: "POST",
         body: formdata,
       });
@@ -131,7 +133,7 @@ export default function Home() {
   };
 
   const handle_delete_chat = async () => {
-    await axios.delete(`http://localhost:8000/delete/${chattoDelete}`);
+    await axios.delete(`${NEXT_API_URL}/delete/${chattoDelete}`);
     setChatID("");
   };
 

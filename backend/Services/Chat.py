@@ -14,31 +14,31 @@ import httpx
 
 async def get_embedding(text: str):
     try:
-        # We use an async context manager for the HTTP client
+        print("in get emb")
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.post(
-                "http://localhost:11434/api/embeddings",
+                "http://ollama:11434/api/embed", # 1. Changed from /api/embeddings
                 json={
                     "model": "nomic-embed-text",
-                    "prompt": text
+                    "input": text # 2. Changed from 'prompt' to 'input'
                 }
             )
             
-            # Raises an exception for 4xx/5xx errors
             response.raise_for_status()
-            
             result = response.json()
             
-            if "embedding" not in result:
+            # 3. New API returns a list of embeddings in 'embeddings'
+            if "embeddings" not in result or not result["embeddings"]:
                 raise ValueError("Ollama response does not contain embedding data")
                 
-            return result["embedding"]
+            # We take the first embedding in the list [0]
+            return result["embeddings"][0]
 
     except Exception as e:
         print(f"Error in get_embedding: {str(e)}")
-        # It's better to return None or an empty list so the search can handle it 
-        # instead of crashing the whole stream
         return None
+
+
 #Cleaning the text
 def clean_text(text):
     return text.strip().replace("\n"," ")
@@ -176,7 +176,7 @@ def parse_pdf(path):
             return []
 
         merged_elements = []
-        
+    
         for el in elements:
             try:
                 # Ensure element has necessary attributes before processing
@@ -205,6 +205,7 @@ def parse_pdf(path):
     except Exception as e:
         print(f"Error in parse_pdf: {str(e)}")
         return []
+
 # IMAGES
 def parse_image(url):
     try:
