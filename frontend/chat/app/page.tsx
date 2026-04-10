@@ -1,5 +1,6 @@
 "use client"
 
+import Navbar from "@/component/Navbar";
 import axios from "axios";
 import { Trash } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
@@ -226,7 +227,7 @@ export default function Home() {
 
   return (
     <div className="flex h-screen bg-black text-white overflow-hidden">
-
+      
       {/* Mobile backdrop */}
       {isMobileSidebarOpen && (
         <div

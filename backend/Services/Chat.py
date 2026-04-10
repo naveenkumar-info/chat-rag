@@ -213,14 +213,16 @@ def parse_image(url):
         res = requests.get(url, timeout=30)
         res.raise_for_status()
         file_like = BytesIO(res.content)
-
+        print("parti img")
         # Partitioning the image using OCR
         elements = partition_image(
             file=file_like,
             strategy="hi_res",
-            ocr_languages=["en"], 
+            # Changed 'ocr_languages' to 'languages'
+            languages=["eng"], 
+            # Use "eng" (ISO 639-3) rather than "en" for better Tesseract compatibility
         )
-
+        print("parti img done")
         if not elements:
             return []
 

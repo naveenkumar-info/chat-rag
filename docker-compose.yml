@@ -4,6 +4,18 @@ services:
     container_name: frontend
     ports:
       - "3000:3000"
+    volumes:
+      - ./frontend/chat:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - WATCHPACK_POLLING=true
+      - NEXT_WEBPACK_USEPOLLING=1
+      - CHOKIDAR_USEPOLLING=true
+      - NEXT_TELEMETRY_DISABLED=1
+      # IMPORTANT: If your computer is slow, increase the Node memory 
+      # to prevent the process from crashing during large builds
+      - NODE_OPTIONS=--max-old-space-size=4096
     env_file:
       - ./frontend/chat/.env
     depends_on:

@@ -1,8 +1,10 @@
 'use client';
 
-import { FileText, Trash2, X, ChevronDown, Upload } from 'lucide-react';
-import { use, useEffect, useState } from 'react';
+import { FileText, Trash2, ChevronDown, Upload } from 'lucide-react';
+import {  useEffect, useState } from 'react';
 import axios from 'axios';
+import UploadModal from '@/app/modals/uploadModal';
+import DeleteModal from '@/app/modals/deleteModal';
 
 const categoryIcons: Record<string, React.ReactNode> = {
     pdf: <FileText size={20} className="text-red-500" />,
@@ -52,7 +54,6 @@ export default function FilesSection() {
     const [fileToDelete, setFileToDelete] = useState<Number | null>(null);
     const [uploadModalOpen, setUploadModalOpen] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [dragActive, setDragActive] = useState(false);
     const [openCategory, setOpenCategory] = useState<string | null>(null);
     const [availableFiles, setAvailableFiles] = useState<file_data[]>([]);
  
@@ -116,50 +117,12 @@ export default function FilesSection() {
 
 
     }
-    
-    const  handleDeleteClick = async (file_id: Number) => {
-
-        const res = await axios.delete(`${NEXT_API_URL}/deletefiles/${file_id}`);
-        console.log('Delete response:', res.data);
-        setDeleteModalOpen(false);
-    };
 
     const handleConfirmDelete = () => {
         console.log(`Deleting file: ${fileToDelete}`);
         setDeleteModalOpen(false);
         setFileToDelete(null);
     };
-
-    const handleCancel = () => {
-        setDeleteModalOpen(false);
-        setFileToDelete(null);
-    };
-
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            setSelectedFile(e.target.files[0]);
-        }
-    };
-
-    const handleDrag = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.type === 'dragenter' || e.type === 'dragover') {
-            setDragActive(true);
-        } else if (e.type === 'dragleave') {
-            setDragActive(false);
-        }
-    };
-
-    const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setDragActive(false);
-        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-            setSelectedFile(e.dataTransfer.files[0]);
-        }
-    };
-
     
     const handleCloseUploadModal = () => {
         setUploadModalOpen(false);
@@ -290,9 +253,7 @@ export default function FilesSection() {
   ) : file.file_type === "doc" || file.file_type === "docx" || file.file_type === "xls" || file.file_type === "xlsx" ? (
     // ✅ Microsoft Viewer
     <a
-      href={`https://docs.google.com/gview?url=${encodeURIComponent(file.file_url)}&embedded=true`}
-      target="_blank"
-      rel="noopener noreferrer"
+    
       className="text-white cursor-pointer text-[12px] sm:text-base font-medium truncate"
     >
       {file.filename}
@@ -301,8 +262,6 @@ export default function FilesSection() {
     // ✅ Fallback (download)
     <a
       href={file.file_url}
-      target="_blank"
-      rel="noopener noreferrer"
       className="text-gray-400 cursor-pointer text-[12px] sm:text-base font-medium truncate underline"
     >
       {file.filename} 
@@ -357,107 +316,21 @@ export default function FilesSection() {
 
             {/* Delete Confirmation Modal */}
             {deleteModalOpen && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-gray-950 border border-gray-800 rounded-lg p-8 max-w-sm w-full mx-4">
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-xl font-semibold text-white">Delete File</h3>
-                            <button
-                                onClick={()=>setDeleteModalOpen(false)}
-                                className="text-gray-400 hover:text-white transition-colors"
-                            >
-                                <X size={24} />
-                            </button>
-                        </div>
-
-                        <p className="text-gray-300 mb-8">
-                            Are you sure you want to delete this file? This action cannot be undone.
-                        </p>
-
-                        <div className="flex gap-4">
-                            <button
-                                onClick={handleCancel}
-                                className="flex-1 px-4 py-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition-colors font-medium"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={() => handleDeleteClick(fileToDelete!)}
-                                className="flex-1 px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors font-medium"
-                            >
-                                Delete
-                            </button>
-                        </div>
-                    </div>
-                </div>
+               <DeleteModal 
+                isOpen={deleteModalOpen} 
+                onClose={() => setDeleteModalOpen(false)} 
+                onConfirm={handleConfirmDelete}
+                fileID={fileToDelete}
+/>
             )}
 
             {/* Upload Modal */}
             {uploadModalOpen && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <div className="bg-gray-950 border border-gray-800 rounded-lg p-8 max-w-lg w-full mx-4">
-                        <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-xl font-semibold text-white">Upload File</h3>
-                            <button
-                                onClick={handleCloseUploadModal}
-                                className="text-gray-400 hover:text-white transition-colors"
-                            >
-                                <X size={24} />
-                            </button>
-                        </div>
-
-                        <div
-                            onDragEnter={handleDrag}
-                            onDragLeave={handleDrag}
-                            onDragOver={handleDrag}
-                            onDrop={handleDrop}
-                            className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors mb-6 ${
-                                dragActive
-                                    ? 'border-white bg-gray-800/30'
-                                    : 'border-gray-700 bg-gray-900/50 hover:border-gray-600'
-                            }`}
-                        >
-                            <input
-                                type="file"
-                                onChange={handleFileSelect}
-                                className="hidden w-full h-full absolute top-0 left-0 cursor-pointer"
-                                id="file-input"
-                                
-                            />
-                            <label htmlFor="file-input" className="cursor-pointer block">
-                                <Upload size={48} className="mx-auto text-gray-600 mb-4" />
-                                <p className="text-white font-medium mb-2">
-                                    {selectedFile ? selectedFile.name : 'Drag and drop your file here'}
-                                </p>
-                                <p className="text-gray-400 text-sm mb-4">
-                                    {selectedFile ? 'File selected' : 'or click to browse'}
-                                </p>
-                                
-                            </label>
-                        </div>
-
-
-
-                        <div className="flex gap-4">
-                            <button
-                                onClick={handleCloseUploadModal}
-                                className="flex-1 px-4 py-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition-colors font-medium"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={()=> uploadfileHandler()}
-                                disabled={!selectedFile}
-                                className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-                                    selectedFile
-                                        ? 'bg-white text-black hover:bg-gray-200'
-                                        : 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                                }`}
-                            >
-                                Upload
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <UploadModal
+                    isOpen={uploadModalOpen}
+                    onClose={handleCloseUploadModal}
+                    onUpload={uploadfileHandler}
+                />
             )}
         </div>
     );
