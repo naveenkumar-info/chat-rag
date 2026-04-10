@@ -87,6 +87,8 @@ async def process_chat_stream(chat_id, question, db: Session):
     except Exception as e:
         print(f"Initial Error: {str(e)}")
         return {"error": str(e)}
+
+
 def delete_chat(chat_id, db: Session):
     try:
         # 1. Fetch the chat record from the database
