@@ -15,8 +15,11 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // Add a small debug log here to see if the key is actually reaching the code
+  console.log("Layout Publishable Key:", process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+
   return (
-    <ClerkProvider>
+    <ClerkProvider publishableKey={process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}>
       <html lang="en">
         <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
           <Navbar />

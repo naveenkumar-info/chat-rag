@@ -4,7 +4,6 @@ import Navbar from "@/component/Navbar";
 import axios from "axios";
 import { Trash } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
-
 type Section = 'ask' | 'statistics';
 
 interface Message {
@@ -39,14 +38,20 @@ export default function Home() {
 
   const NEXT_API_URL = process.env.NEXT_PUBLIC_API_URL;
 
+
   const get_chats = async () => {
     try {
+
+      
+      
       const res = await axios.get(`${NEXT_API_URL}/chats`);
       setChats(res.data);
     } catch (error) {
       console.log("error in getting the chats", error);
     }
   };
+
+  
 
   useEffect(() => {
     get_chats();
