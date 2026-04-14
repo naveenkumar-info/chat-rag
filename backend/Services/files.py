@@ -264,7 +264,7 @@ async def get_answer_stream(query: str, history: list):
         # --- BALANCED CONTEXTUAL PROMPT ---
         # --- BALANCED CONTEXTUAL PROMPT ---
         prompt = f"""
-        ### ROLE ###
+        ### ROLE ### 
         You are a helpful assistant that answers questions STRICTLY based on the provided documents.
 
         ### INSTRUCTIONS ###

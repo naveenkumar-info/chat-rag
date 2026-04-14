@@ -101,37 +101,8 @@ const handleGoogleSignUp = async () => {
               Welcome! Please fill in your details to get started.
             </p>
 
-            {/* Role Selection */}
-            <div className="mb-4">
-              <label className="block text-slate-400 text-[11px] font-medium uppercase tracking-widest mb-1.5">
-                Select your role
-              </label>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setRole("user")}
-                  className={`flex-1 py-2.5 px-3 rounded-lg border transition-all text-sm font-medium ${
-                    role === "user"
-                      ? "bg-blue-600 border-blue-500 text-white"
-                      : "bg-[#0f1f38] border-[#1e3a5f] text-slate-400 hover:border-blue-500/40"
-                  }`}
-                >
-                  User
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRole("admin")}
-                  className={`flex-1 py-2.5 px-3 rounded-lg border transition-all text-sm font-medium ${
-                    role === "admin"
-                      ? "bg-blue-600 border-blue-500 text-white"
-                      : "bg-[#0f1f38] border-[#1e3a5f] text-slate-400 hover:border-blue-500/40"
-                  }`}
-                >
-                  Admin
-                </button>
-              </div>
-            </div>
-
+            
+           
             {/* Email */}
             <div className="mb-4">
               <label className="block text-slate-400 text-[11px] font-medium uppercase tracking-widest mb-1.5">
