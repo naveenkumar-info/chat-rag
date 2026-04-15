@@ -51,12 +51,17 @@ export default function Home() {
 
       
       
+
+      
+      
       const res = await axios.get(`${NEXT_API_URL}/chats`);
       setChats(res.data);
     } catch (error) {
       console.log("error in getting the chats", error);
     }
   };
+
+  
 
   
 
