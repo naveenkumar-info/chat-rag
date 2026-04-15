@@ -1,6 +1,8 @@
 "use client";
+"use client";
 import { useSignUp } from "@clerk/nextjs/legacy";
 import { useState } from "react";
+import { Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { Eye, EyeOff, ArrowLeft } from "lucide-react";
 
 export default function SignUp() {

@@ -58,6 +58,8 @@ class ChromaService:
                     metadata["file_id"] = file_id
                     
                     metadatas.append(metadata)
+                    print("metadata",metadata)
+                    print("and file id is ",file_id)
                     ids.append(str(uuid.uuid4()))
                     
                 except Exception as inner_e:

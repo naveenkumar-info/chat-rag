@@ -5,6 +5,7 @@ import axios from "axios";
 import { Trash } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 type Section = 'ask' | 'statistics';
+import { useUser } from "@clerk/nextjs";
 
 interface Message {
   id?: number;
@@ -33,14 +34,23 @@ export default function Home() {
   const [chattoDelete, setChattoDelete] = useState<Number>();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const { user } = useUser();
+  
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const NEXT_API_URL = process.env.NEXT_PUBLIC_API_URL;
 
+  useEffect(()=>{
+    console.log("Current user in Home page:", user);
+    console.log("publicMetadata:", user?.publicMetadata?.role);
+  },[user])
 
   const get_chats = async () => {
     try {
+
+      
+      
 
       
       
@@ -50,6 +60,8 @@ export default function Home() {
       console.log("error in getting the chats", error);
     }
   };
+
+  
 
   
 
