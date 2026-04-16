@@ -1,33 +1,32 @@
 "use client";
-"use client";
+
 import { useSignUp } from "@clerk/nextjs/legacy";
 import { useState } from "react";
 import { Eye, EyeOff, ArrowLeft } from "lucide-react";
-import { Eye, EyeOff, ArrowLeft } from "lucide-react";
+import axios from "axios";
 
 export default function SignUp() {
   const { isLoaded, signUp, setActive } = useSignUp();
   const [emailAddress, setEmailAddress] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<"admin" | "user" | "">("");
   const [pendingVerification, setPendingVerification] = useState(false);
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
+
+  const NEXT_API_URL = process.env.NEXT_PUBLIC_API_URL;
+
 const handleGoogleSignUp = async () => {
   if (!isLoaded || !signUp) return;
-  if (!role) {
-    setError("Please select a role before continuing");
-    return;
-  }
   try {
     await signUp.authenticateWithRedirect({
       strategy: "oauth_google",
       redirectUrl: `${window.location.origin}/sso-callback`,
-      redirectUrlComplete: role === "admin" ? "/dashboard" : "/",
-      unsafeMetadata: { role },
+      redirectUrlComplete: "/",
     });
+
+   // await axios.post(`${NEXT_API_URL}/create-user/`, formData);
   } catch (err: any) {
     setError(err.errors?.[0]?.longMessage ?? err.errors?.[0]?.message ?? "Google sign-up failed.");
   }
@@ -36,10 +35,6 @@ const handleGoogleSignUp = async () => {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isLoaded) return;
-    if (!role) {
-      setError("Please select a role before continuing");
-      return;
-    }
     setError("");
     try {
       const result = await signUp.create({ 
@@ -47,12 +42,6 @@ const handleGoogleSignUp = async () => {
         password,
       });
       
-      // Set role in metadata
-      if (result.id) {
-        await signUp.update({
-          unsafeMetadata: { role },
-        });
-      }
       
       await signUp.prepareEmailAddressVerification({ strategy: "email_code" });
       setPendingVerification(true);
@@ -69,9 +58,12 @@ const handleGoogleSignUp = async () => {
       const result = await signUp.attemptEmailAddressVerification({ code });
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId });
-        // Redirect based on role
-        const redirectUrl = role === "admin" ? "/dashboard" : "/";
-        window.location.href = redirectUrl;
+        
+        // Add small delay to ensure session is established before redirect
+        setTimeout(() => {
+          const redirectUrl = "/";
+          window.location.href = redirectUrl;
+        }, 500);
       }
     } catch (err: any) {
       setError(err.errors?.[0]?.message || "Invalid code.");
@@ -87,7 +79,7 @@ const handleGoogleSignUp = async () => {
 
         {/* Logo */}
         <div className="flex items-center gap-2 mb-7">
-          <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center">
+          <div className="w-7 h-7 bg-linear-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center">
             <span className="text-white text-xs font-semibold font-mono">A</span>
           </div>
           <span className="text-slate-200 text-sm font-medium tracking-wide">Acme</span>
@@ -103,36 +95,6 @@ const handleGoogleSignUp = async () => {
               Welcome! Please fill in your details to get started.
             </p>
 
-            {/* Role Selection */}
-            <div className="mb-4">
-              <label className="block text-slate-400 text-[11px] font-medium uppercase tracking-widest mb-1.5">
-                Select your role
-              </label>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setRole("user")}
-                  className={`flex-1 py-2.5 px-3 rounded-lg border transition-all text-sm font-medium ${
-                    role === "user"
-                      ? "bg-blue-600 border-blue-500 text-white"
-                      : "bg-[#0f1f38] border-[#1e3a5f] text-slate-400 hover:border-blue-500/40"
-                  }`}
-                >
-                  User
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRole("admin")}
-                  className={`flex-1 py-2.5 px-3 rounded-lg border transition-all text-sm font-medium ${
-                    role === "admin"
-                      ? "bg-blue-600 border-blue-500 text-white"
-                      : "bg-[#0f1f38] border-[#1e3a5f] text-slate-400 hover:border-blue-500/40"
-                  }`}
-                >
-                  Admin
-                </button>
-              </div>
-            </div>
 
             {/* Email */}
             <div className="mb-4">
@@ -179,7 +141,7 @@ const handleGoogleSignUp = async () => {
 
             <button
               type="submit"
-              className="w-full mt-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white text-sm font-medium rounded-lg py-2.5 transition-all active:scale-[0.99] cursor-pointer"
+              className="w-full mt-2 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white text-sm font-medium rounded-lg py-2.5 transition-all active:scale-[0.99] cursor-pointer"
             >
               Continue
             </button>
@@ -249,7 +211,7 @@ const handleGoogleSignUp = async () => {
 
             <button
               type="submit"
-              className="w-full mt-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white text-sm font-medium rounded-lg py-2.5 transition-all active:scale-[0.99] cursor-pointer"
+              className="w-full mt-2 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white text-sm font-medium rounded-lg py-2.5 transition-all active:scale-[0.99] cursor-pointer"
             >
               Verify email
             </button>

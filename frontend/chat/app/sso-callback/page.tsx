@@ -7,7 +7,7 @@ export default function SSOCallback() {
   return (
     <div className="min-h-screen bg-[#060d1a] flex items-center justify-center">
       <div className="flex flex-col items-center gap-4">
-        <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center">
+        <div className="w-7 h-7 bg-linear-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center">
           <span className="text-white text-xs font-semibold font-mono">A</span>
         </div>
         <div className="flex items-center gap-2">
