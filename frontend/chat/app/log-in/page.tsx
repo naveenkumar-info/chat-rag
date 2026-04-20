@@ -32,16 +32,15 @@ export default function SignIn() {
     setError("");
     try {
         console.log("hi")
-        console.log("Clerk publishable key:", process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY); // ADD THIS
-        console.log("Clerk secret key:", process.env.CLERK_SECRET_KEY); // ADD THIS
       const result = await signIn.create({
         identifier: emailAddress,
         password,
    
       });
-      console.log("Sign-in result:", result);
+      console.log("Sign-in result:", result.status);
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId });
+        
       }
     } catch (err: any) {
   console.error("Full Clerk Error:", err); // ADD THIS
@@ -114,7 +113,7 @@ const handleGoogleSignIn = async () => {
 
         {/* Logo */}
         <div className="flex items-center gap-2 mb-7">
-          <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center">
+          <div className="w-7 h-7 bg-linear-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center">
             <span className="text-white text-xs font-semibold font-mono">A</span>
           </div>
           <span className="text-slate-200 text-sm font-medium tracking-wide">Acme</span>
@@ -180,7 +179,7 @@ const handleGoogleSignIn = async () => {
 
             {error && <p className="text-red-400 text-xs mt-1 mb-1">{error}</p>}
 
-            <button onClick={handleSignIn} type="submit" disabled={loading} className={btnPrimaryCls}>
+            <button type="submit" disabled={loading} className={btnPrimaryCls}>
               {loading ? "Signing in…" : "Sign in"}
             </button>
 
@@ -328,7 +327,7 @@ const handleGoogleSignIn = async () => {
             <p className="text-slate-500 text-sm mb-6">You're now signed in with your new password.</p>
             <Link
               href="/"
-              className="inline-block px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white text-sm font-medium rounded-lg transition-all no-underline"
+              className="inline-block px-6 py-2.5 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white text-sm font-medium rounded-lg transition-all no-underline"
             >
               Go to dashboard
             </Link>

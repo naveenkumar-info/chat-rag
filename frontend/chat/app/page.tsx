@@ -61,10 +61,6 @@ export default function Home() {
     }
   };
 
-  
-
-  
-
   useEffect(() => {
     get_chats();
   }, []);
@@ -193,7 +189,7 @@ export default function Home() {
                   <p className="text-[10px] sm:text-xs font-bold mb-1 opacity-50 uppercase tracking-tighter">
                     {msg.role}
                   </p>
-                  <p className="text-sm sm:text-base whitespace-pre-wrap leading-relaxed break-words">
+                  <p className="text-sm sm:text-base whitespace-pre-wrap leading-relaxed wrap-break-words">
                     {msg.content}
                   </p>
                 </div>
@@ -260,7 +256,7 @@ export default function Home() {
       <aside
         className={[
           "fixed md:relative z-40 md:z-auto",
-          "flex-shrink-0 bg-gray-950 border-r border-gray-800 flex flex-col h-full",
+          "shrink-0 bg-gray-950 border-r border-gray-800 flex flex-col h-full",
           "transition-all duration-300 ease-in-out",
           // Mobile: fixed width, slide in/out via translate
           "w-72",
@@ -274,7 +270,7 @@ export default function Home() {
           {/* Sidebar Header */}
           <div className={`flex items-center border-b border-gray-800 h-14 px-3 ${sidebarExpanded ? "justify-between" : "justify-center"}`}>
             <div className="flex items-center gap-3 overflow-hidden">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-sm flex-shrink-0">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-sm shrink-0">
                 FI
               </div>
               {sidebarExpanded && (
@@ -287,7 +283,7 @@ export default function Home() {
             {/* Desktop collapse toggle */}
             <button
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="hidden md:flex p-2 rounded-lg text-gray-500 hover:bg-gray-800 hover:text-gray-200 transition-all flex-shrink-0"
+              className="hidden md:flex p-2 rounded-lg text-gray-500 hover:bg-gray-800 hover:text-gray-200 transition-all shrink-0"
             >
               {isSidebarOpen ? (
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -325,7 +321,7 @@ export default function Home() {
               }`}
               title={!sidebarExpanded ? "New Chat" : undefined}
             >
-              <div className={`rounded-md bg-blue-600/10 text-blue-500 group-hover:bg-blue-600 group-hover:text-white transition-all flex-shrink-0 ${sidebarExpanded ? "p-1" : "p-2"}`}>
+              <div className={`rounded-md bg-blue-600/10 text-blue-500 group-hover:bg-blue-600 group-hover:text-white transition-all shrink-0 ${sidebarExpanded ? "p-1" : "p-2"}`}>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
                 </svg>
@@ -339,7 +335,7 @@ export default function Home() {
           {/* Chat List */}
           <nav className="flex-1 overflow-y-auto py-3 px-2">
             {sidebarExpanded && (
-              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-[0.1em] px-3 mb-2">
+              <p className="text-[11px] font-bold text-gray-500 uppercase tracking-widest px-3 mb-2">
                 Recent activity
               </p>
             )}
@@ -365,7 +361,7 @@ export default function Home() {
                         <div className="absolute left-0 top-2 bottom-2 w-0.5 bg-blue-500 rounded-full" />
                       )}
                       <svg
-                        className={`w-4 h-4 flex-shrink-0 ${chatID === chat.id.toString() ? "text-blue-400" : "text-gray-600"}`}
+                        className={`w-4 h-4 shrink-0 ${chatID === chat.id.toString() ? "text-blue-400" : "text-gray-600"}`}
                         fill="none" stroke="currentColor" viewBox="0 0 24 24"
                       >
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -399,7 +395,7 @@ export default function Home() {
           {/* Footer */}
           <div className={`border-t border-gray-800 bg-[#080808] p-3 ${!sidebarExpanded ? "flex justify-center" : ""}`}>
             <div className={`flex items-center gap-3 ${sidebarExpanded ? "px-2" : ""}`}>
-              <div className="w-8 h-8 rounded-full bg-gray-800 border border-gray-700 flex-shrink-0" />
+              <div className="w-8 h-8 rounded-full bg-gray-800 border border-gray-700 shrink-0" />
               {sidebarExpanded && (
                 <div className="flex-1 overflow-hidden">
                   <p className="text-xs font-medium text-gray-200 truncate">Pro User</p>
@@ -419,7 +415,7 @@ export default function Home() {
           {/* Mobile hamburger */}
           <button
             onClick={() => setIsMobileSidebarOpen(true)}
-            className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-800 hover:text-gray-200 transition-all flex-shrink-0"
+            className="md:hidden p-2 rounded-lg text-gray-500 hover:bg-gray-800 hover:text-gray-200 transition-all shrink-0"
             aria-label="Open sidebar"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

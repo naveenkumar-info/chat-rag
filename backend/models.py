@@ -31,3 +31,12 @@ class Message(Base):
     role=Column(String)
     content=Column(String)
     created_at=Column(DateTime,default=datetime.utcnow)
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    clerk_id = Column(String, nullable=False, unique=True, index=True)
+    email = Column(String, nullable=False, unique=True, index=True)
+    role = Column(String, default="user", nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

@@ -4,45 +4,50 @@ import type { NextRequest } from "next/server";
 
 const isProtectedRoute = createRouteMatcher([
   "/dashboard(.*)",
-  "/",
+  "/", 
 ]);
 
 const isDashboardRoute = createRouteMatcher(["/dashboard(.*)"]);
-const isHomeRoute = createRouteMatcher(["^/$"]);
+const isHomeRoute = createRouteMatcher(["/"]);
+const isLoginRoute = createRouteMatcher(["/log-in(.*)"]);
 
 export default clerkMiddleware(async (auth, req: NextRequest) => {
   const { userId, sessionClaims } = await auth();
   
-  // Allow public routes (login, signup, etc.)
+  // Safely get the role
+  const userRole = (sessionClaims?.publicMetadata as { role?: string })?.role;
+  console.log(userRole);
+  // 1. If user is logged in and tries to access login page, redirect based on role
+  if (isLoginRoute(req) && userId) {
+    if (userRole === "admin") {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+    return NextResponse.redirect(new URL("/", req.url));
+  }
+
+  // 2. Allow public routes (like /log-in) if not protected
   if (!isProtectedRoute(req)) {
     return NextResponse.next();
   }
 
-  // Check if user is authenticated
+  // 3. Force Login if no user
   if (!userId) {
+    // Check if we are already on login to prevent loops (though createRouteMatcher handles this)
     return NextResponse.redirect(new URL("/log-in", req.url));
   }
 
-  // Get user role from session claims public metadata
-  const publicMetadata = (sessionClaims?.publicMetadata as any) || {};
-  const userRole = publicMetadata.role;
-
-  console.log(`[Middleware] User ${userId} role: ${userRole}`);
-
-  // Dashboard is admin-only
-  if (isDashboardRoute(req)) {
-    if (userRole !== "admin") {
-      console.log(`[Middleware] User ${userId} (role: ${userRole}) denied access to /dashboard`);
-      return NextResponse.redirect(new URL("/", req.url));
-    }
+  // 4. Role-Based Protection Logic
+  // Only redirect if we ARE on the wrong path AND we have a valid role to judge by
+  
+  if (isDashboardRoute(req) && userRole !== "admin") {
+    // If not admin, send to home. 
+    // IMPORTANT: Only do this if they aren't already being bounced back.
+    return NextResponse.redirect(new URL("/", req.url));
   }
 
-  // Home page is user-only
-  if (isHomeRoute(req)) {
-    if (userRole !== "user") {
-      console.log(`[Middleware] User ${userId} (role: ${userRole}) denied access to /`);
-      return NextResponse.redirect(new URL("/dashboard", req.url));
-    }
+  if (isHomeRoute(req) && userRole === "admin") {
+    // If admin hits home page, send them to their dashboard
+    return NextResponse.redirect(new URL("/dashboard", req.url));
   }
 
   return NextResponse.next();
@@ -50,9 +55,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
 
 export const config = {
   matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    // Always run for API routes
-    "/(api|trpc)(.*)",
+    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    '/(api|trpc)(.*)',
   ],
 };
