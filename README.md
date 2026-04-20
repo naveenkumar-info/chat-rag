@@ -68,8 +68,18 @@ git clone https://github.com/naveenkumar-info/chat-rag.git
 cd chat-rag
 git checkout development
 ```
+### 2. Configure Clerk Webhook
 
-### 2. Set up environment variables
+In your [Clerk Dashboard](https://dashboard.clerk.com), go to **Webhooks → Add Endpoint** and set:
+
+- **URL**: `http://your-domain/webhooks/clerk` (use a tunnel for local development)
+- **Events**: `user.created`, `user.updated`, `user.deleted`
+
+Copy the **Signing Secret** and set it as `CLERK_WEBHOOK_SECRET` in your `.env` files.
+
+> The webhook syncs Clerk users into your PostgreSQL `User` table automatically.
+
+### 3. Set up environment variables
 
 You need `.env` files in three locations. Create each one with the variables listed below.
 
@@ -113,7 +123,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8001
 
 ---
 
-### 3. Run the app
+### 4. Run the app
 
 ```bash
 # First time or after changes to backend/db
@@ -123,7 +133,7 @@ docker-compose up --build
 docker-compose up -d --build
 ```
 
-### 4. Access the app
+### 5. Access the app
 
 | Service | URL |
 |---|---|
