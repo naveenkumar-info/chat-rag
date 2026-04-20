@@ -97,6 +97,9 @@ export default function Home() {
     }
   };
 
+//   Signup -> auto role set user using webhook by creating a tunnel.
+// Admin -> Added admin registration on admin panel ---> User signup as a user (stored in publicMetadata in clerk ) ---> further promoted via email by the existing admin.
+
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
