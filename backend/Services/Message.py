@@ -89,7 +89,7 @@ async def process_chat_stream(chat_id, question, db: Session):
         return {"error": str(e)}
 
 
-def delete_chat(chat_id, db: Session):
+def delete_chat(chat_id, db: Session,clerk_id:str):
     try:
         # 1. Fetch the chat record from the database
         chat_to_delete = db.query(Chat).filter(Chat.id == chat_id).first()
@@ -97,6 +97,10 @@ def delete_chat(chat_id, db: Session):
         if not chat_to_delete:
             print(f"Delete attempt failed: Chat with ID {chat_id} not found")
             return {"error": "Chat not found"}
+        
+        if chat_to_delete.clerk_id != clerk_id:
+            print(f"Delete attempt failed: User {clerk_id} does not own chat {chat_id}")
+            return {"error": "Access denied to delete this chat"}
 
         # 2. Delete all messages associated with this chat
         # Bulk delete is more efficient than individual deletions

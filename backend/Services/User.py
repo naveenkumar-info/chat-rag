@@ -1,4 +1,3 @@
-import logging
 from sqlalchemy.orm import Session
 from models import User
 from datetime import datetime
@@ -6,30 +5,6 @@ import requests
 import os
 
 CLERK_SECRET_KEY = os.getenv("CLERK_SECRET_KEY")
-
-# Configure logger
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-# Handler for file logging
-file_handler = logging.FileHandler("user_service.log")
-file_handler.setLevel(logging.INFO)
-
-# Handler for console logging
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-
-# Formatter
-formatter = logging.Formatter(
-    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
-file_handler.setFormatter(formatter)
-console_handler.setFormatter(formatter)
-
-# Add handlers to logger
-if not logger.handlers:
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
 
 
 def update_clerk_metadata(clerk_id: str):
@@ -45,7 +20,6 @@ def update_clerk_metadata(clerk_id: str):
     print("header ready: ", headers)
     payload = {
         "public_metadata": {"role": "user"},
-        
     }
     print("payload ready: ", payload)
 
@@ -91,14 +65,14 @@ def handle_user_created(db: Session, clerk_id: str, email: str) -> dict:
             "message": "User created successfully",
             "user_id": new_user.id,
             "clerk_id": new_user.clerk_id,
-            
         }
 
     except Exception as e:
         db.rollback()
         print(f"Error creating user {clerk_id}: {str(e)}")
         return {"status": "error", "message": f"Failed to create user: {str(e)}"}
-    
+
+
 def promote_user_by_ID(email: str, db: Session):
     try:
         user = db.query(User).filter(User.email == email).first()
@@ -123,7 +97,6 @@ def promote_user_by_ID(email: str, db: Session):
             print(f"✓ User {email} promoted to admin in Clerk")
         else:
             print(f"✗ Failed to promote user in Clerk: {response.status_code} {response.text}")
-        
 
         return {"status": "success", "message": f"User {email} promoted to admin"}
     except Exception as e:

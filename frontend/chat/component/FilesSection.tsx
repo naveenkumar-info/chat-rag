@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import axios from 'axios';
 import UploadModal from '@/app/modals/uploadModal';
 import DeleteModal from '@/app/modals/deleteModal';
+import { useAuth } from '@clerk/nextjs';
 
 const categoryIcons: Record<string, React.ReactNode> = {
     pdf: <FileText size={20} className="text-red-500" />,
@@ -46,15 +47,15 @@ interface file_data {
 
 export default function FilesSection() {
     const NEXT_API_URL = process.env.NEXT_PUBLIC_API_URL;
+    const { getToken } = useAuth();
 
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-    const [fileToDelete, setFileToDelete] = useState<Number | null>(null);
+    const [fileToDelete, setFileToDelete] = useState<number | null>(null);
     const [uploadModalOpen, setUploadModalOpen] = useState(false);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [openCategory, setOpenCategory] = useState<string | null>(null);
     const [availableFiles, setAvailableFiles] = useState<file_data[]>([]);
 
-    // Admin modal states
     const [adminModalOpen, setAdminModalOpen] = useState(false);
     const [adminEmail, setAdminEmail] = useState('');
     const [adminLoading, setAdminLoading] = useState(false);
@@ -67,32 +68,64 @@ export default function FilesSection() {
         return acc;
     }, {} as Record<string, file_data[]>);
 
+    // ── always get a fresh token, never cache in state ──
+    const getAuthHeaders = async () => {
+        const t = await getToken();
+        if (!t) throw new Error('No token available');
+        return { Authorization: `Bearer ${t}` };
+    };
+
     const getFiles = async () => {
         try {
-            const response = await axios.get(`${NEXT_API_URL}/files/`);
+            const headers = await getAuthHeaders();
+            const response = await axios.get(`${NEXT_API_URL}/files/`, { headers });
             setAvailableFiles(response.data);
         } catch (error) {
             console.error('Error fetching files:', error);
         }
     };
 
-    useEffect(() => { getFiles(); }, []);
+    useEffect(() => {
+        getFiles();
+    }, []);
 
-    const uploadfileHandler = async () => {
-        const formData = new FormData();
-        if (selectedFile) formData.append('file', selectedFile);
+    const uploadfileHandler = async (file: File) => {
         try {
-            await axios.post(`${NEXT_API_URL}/uploadfile/`, formData);
+            const headers = await getAuthHeaders();
+            const formData = new FormData();
+            formData.append('file', file);
+            await axios.post(`${NEXT_API_URL}/uploadfile/`, formData, {
+                headers: {
+                    ...headers,
+                    'Content-Type': 'multipart/form-data',
+                },
+            });
             setUploadModalOpen(false);
-            setSelectedFile(null);
+            getFiles(); // refresh list after upload
         } catch (error) {
             console.error('Error uploading file:', error);
         }
     };
 
-    const handleConfirmDelete = () => {
-        setDeleteModalOpen(false);
-        setFileToDelete(null);
+    const handleConfirmDelete = async () => {
+
+        console.log("Attempting to delete file with ID:", fileToDelete);
+
+        try{
+            const response = await axios.delete(`${NEXT_API_URL}/deletefiles/${fileToDelete}`, {
+                headers: {
+                    ...await getAuthHeaders()
+                }
+            });
+            console.log('Delete response:', response.data);
+             setDeleteModalOpen(false);
+            setFileToDelete(null);
+        }
+        catch (error) {
+            console.error('Error delete file:', error);
+        }
+        
+       
     };
 
     const handleCloseUploadModal = () => {
@@ -107,29 +140,29 @@ export default function FilesSection() {
     };
 
     const handlePromoteAdmin = async () => {
-    if (!adminEmail.trim()) {
-        setAdminError('Please enter an email address');
-        return;
-    }
-    setAdminLoading(true);
-    setAdminError('');
-    try {
-        const formData = new FormData();
-        formData.append('email', adminEmail);
-        await axios.post(`${NEXT_API_URL}/promote`, formData);
-        handleCloseAdminModal();
-    } catch (error: any) {
-        setAdminError(error.response?.data?.message || 'Failed to promote user');
-    } finally {
-        setAdminLoading(false);
-    }
-};
+        if (!adminEmail.trim()) {
+            setAdminError('Please enter an email address');
+            return;
+        }
+        setAdminLoading(true);
+        setAdminError('');
+        try {
+            const headers = await getAuthHeaders();
+            const formData = new FormData();
+            formData.append('email', adminEmail);
+            await axios.post(`${NEXT_API_URL}/promote`, formData, { headers });
+            handleCloseAdminModal();
+        } catch (error: any) {
+            setAdminError(error.response?.data?.message || 'Failed to promote user');
+        } finally {
+            setAdminLoading(false);
+        }
+    };
 
     return (
         <div className="p-8 h-full flex flex-col overflow-hidden">
             <div className="mb-6 flex items-center justify-between shrink-0 gap-4">
 
-                {/* LEFT CONTENT */}
                 <div className="min-w-0 overflow-hidden">
                     <h2 className="text-[18px] sm:text-[20px] font-bold text-white mb-2 flex items-center gap-2 flex-wrap">
                         <span className="whitespace-nowrap">Files</span>
@@ -142,10 +175,7 @@ export default function FilesSection() {
                     </p>
                 </div>
 
-                {/* RIGHT BUTTONS */}
                 <div className="flex items-center gap-2">
-
-                    {/* Create Admin Button */}
                     <button
                         onClick={() => setAdminModalOpen(true)}
                         className="p-3 w-10 h-9.5 sm:w-auto sm:h-10 bg-gray-800 text-white border border-gray-700 rounded-lg text-[12px] hover:bg-gray-700 transition-all duration-300 flex items-center gap-2"
@@ -156,7 +186,6 @@ export default function FilesSection() {
                         </span>
                     </button>
 
-                    {/* Upload Button */}
                     <button
                         onClick={() => setUploadModalOpen(true)}
                         className="p-3 w-10 h-9.5 sm:w-30 sm:h-10 bg-white text-black rounded-lg text-[12px] hover:bg-gray-200 transition-all duration-300 ml-4 flex items-center gap-2"
@@ -166,7 +195,6 @@ export default function FilesSection() {
                             Upload File
                         </span>
                     </button>
-
                 </div>
             </div>
 
@@ -251,7 +279,6 @@ export default function FilesSection() {
                 </div>
             )}
 
-            {/* Delete Modal */}
             {deleteModalOpen && (
                 <DeleteModal
                     isOpen={deleteModalOpen}
@@ -261,7 +288,6 @@ export default function FilesSection() {
                 />
             )}
 
-            {/* Upload Modal */}
             {uploadModalOpen && (
                 <UploadModal
                     isOpen={uploadModalOpen}
@@ -270,23 +296,15 @@ export default function FilesSection() {
                 />
             )}
 
-            {/* Create Admin Modal */}
             {adminModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
                     <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 w-full max-w-md mx-4 shadow-xl">
-
-                        {/* Header */}
                         <div className="flex items-center justify-between mb-6">
                             <h3 className="text-white font-semibold text-lg">Promote to Admin</h3>
-                            <button
-                                onClick={handleCloseAdminModal}
-                                className="text-gray-400 hover:text-white transition-colors"
-                            >
+                            <button onClick={handleCloseAdminModal} className="text-gray-400 hover:text-white transition-colors">
                                 <X size={20} />
                             </button>
                         </div>
-
-                        {/* Input */}
                         <div className="mb-4">
                             <label className="text-gray-400 text-sm mb-2 block">
                                 Search by email address
@@ -298,12 +316,8 @@ export default function FilesSection() {
                                 placeholder="user@example.com"
                                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:border-gray-500 transition-colors text-sm"
                             />
-                            {adminError && (
-                                <p className="text-red-400 text-xs mt-2">{adminError}</p>
-                            )}
+                            {adminError && <p className="text-red-400 text-xs mt-2">{adminError}</p>}
                         </div>
-
-                        {/* Buttons */}
                         <div className="flex gap-3 mt-6">
                             <button
                                 onClick={handleCloseAdminModal}
@@ -319,7 +333,6 @@ export default function FilesSection() {
                                 {adminLoading ? 'Promoting...' : 'Promote'}
                             </button>
                         </div>
-
                     </div>
                 </div>
             )}
