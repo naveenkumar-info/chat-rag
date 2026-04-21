@@ -1,8 +1,10 @@
-from fastapi import FastAPI, Form, File, Request, UploadFile, Depends
+from pyexpat.errors import messages
+
+from fastapi import FastAPI, Form, File, HTTPException, Request, UploadFile, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from Services.files import upload_file, delete_file, check_chroma_size, del_all_chroma
-from models import files, Chat, Message
+from models import Chat, Message, User, File
 from db import get_db, Base, create_table
 from Services.Message import delete_chat, process_chat_stream
 from Services.User import handle_user_created,promote_user_by_ID
@@ -11,10 +13,13 @@ import logging
 import os
 import json
 from svix.webhooks import Webhook
+import requests
+from auth import require_admin,require_user
 
 
 # Configure logger for webhook
 logger = logging.getLogger(__name__)
+
 
 # Get Clerk webhook secret from environment
 CLERK_WEBHOOK_SECRET = os.getenv("CLERK_WEBHOOK_SECRET")
@@ -46,9 +51,11 @@ async def root():
 @app.post("/uploadfile/")
 async def upload_file_DB(
     db: Session = Depends(get_db),
-    file: UploadFile = File(...),
+    file: UploadFile = File(),
+    clerk_id: str = Depends(require_admin),
+    
 ):
-    return await upload_file(db, file)
+    return await upload_file(db, file,clerk_id)
 
 
 @app.post("/get-answer")
@@ -61,8 +68,15 @@ async def ask_question(
 
 
 @app.post("/chat/create_chat")
-async def create_chat(name: str = Form(...), db: Session = Depends(get_db)):
-    chat = Chat(name=name)
+async def create_chat(
+    name: str = Form(...), 
+    db: Session = Depends(get_db),
+    clerk_id: str = Depends(require_user)
+):
+    chat = Chat(
+        name=name,
+        clerk_id=clerk_id['clerk_id']
+        )
     db.add(chat)
     db.commit()
     db.refresh(chat)
@@ -132,8 +146,13 @@ async def clerk_webhook(request: Request, db: Session = Depends(get_db)):
         return {"status": "error", "message": "Internal server error processing webhook"}
 
 @app.post("/promote")
-async def promote_by_ID(email: str = Form(...), db: Session = Depends(get_db)):
+async def promote_by_ID(
+    email: str = Form(...), 
+    db: Session = Depends(get_db),
+    clerk_id: str = Depends(require_admin)    
+):
     return promote_user_by_ID(email, db)
+
 # ─── GET METHODS ─────────────────────────────────────────────────────────────
 
 @app.get("/webhook-test")
@@ -146,20 +165,27 @@ async def webhook_test():
         "message": "Webhook is ready to receive Clerk events",
     }
 
-
 @app.get("/files/")
-async def get_files(db: Session = Depends(get_db)):
-    return db.query(files).all()
-
+async def get_files(
+    db: Session = Depends(get_db),
+    clerk_id: str = Depends(require_admin)):
+    print(f"Fetching files for clerk_id: {clerk_id['clerk_id']}")
+    return db.query(File).filter(File.clerk_id == clerk_id['clerk_id']).all()
 
 @app.get("/check-size-chroma")
-async def get_file_size(db: Session = Depends(get_db)):
+async def get_file_size(
+    db: Session = Depends(get_db),
+    clerk_id: str = Depends(require_admin)
+    ):
     return check_chroma_size()
 
 
 @app.get("/chats")
-async def get_chats(db: Session = Depends(get_db)):
-    chats = db.query(Chat).order_by(Chat.created_at.desc()).all()
+async def get_chats(
+    db: Session = Depends(get_db),
+    clerk_id: str = Depends(require_user)
+    ):
+    chats = db.query(Chat).order_by(Chat.created_at.desc()).filter(Chat.clerk_id == clerk_id['clerk_id']).all()
     return [
         {
             "id": c.id,
@@ -171,7 +197,17 @@ async def get_chats(db: Session = Depends(get_db)):
 
 
 @app.get("/chat/{chat_id}")
-def get_chat(chat_id: int, db: Session = Depends(get_db)):
+def get_chat(
+    chat_id: int, 
+    db: Session = Depends(get_db),
+    clerk_id: str = Depends(require_user)
+    ):
+    chat = db.query(Chat).filter(Chat.id == chat_id).first()
+
+    if chat:
+        if chat.clerk_id != clerk_id['clerk_id']:
+            raise HTTPException(status_code=403, detail="Access denied to this chat")
+
     messages = (
         db.query(Message)
         .filter(Message.chat_id == chat_id)
@@ -180,20 +216,90 @@ def get_chat(chat_id: int, db: Session = Depends(get_db)):
     )
     return [{"role": m.role, "content": m.content} for m in messages]
 
+@app.get("/allusers")
+async def get_all_users(
+    db: Session = Depends(get_db),
+    clerk_id: str = Depends(require_admin)
+):
+    users = db.query(User).all()
+    return [
+        {
+            "id": u.id,
+            "email": u.email,
+            "clerk_id": u.clerk_id,
+            "role": u.role,
+            "created_at": u.created_at,
+        }
+        for u in users
+    ]
+
 
 # ─── DELETE METHODS ───────────────────────────────────────────────────────────
 
 @app.delete("/delete_all_chroma")
-async def delete_all_chroma():
+async def delete_all_chroma(
+    clerk_id: str = Depends(require_admin)
+):
     return del_all_chroma()
 
 
 @app.delete("/deletefiles/{file_id}")
-async def delete_file_DB(file_id: int, db: Session = Depends(get_db)):
+async def delete_file_DB(
+    file_id: int, 
+    db: Session = Depends(get_db),
+    clerk_id: str = Depends(require_admin)
+    ):
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, lambda: delete_file(db, file_id))
+    return await loop.run_in_executor(None, lambda: delete_file(db, file_id,clerk_id['clerk_id']))
 
 
 @app.delete("/delete/{chat_id}")
-async def delete_chat_byID(chat_id: int, db: Session = Depends(get_db)):
-    return delete_chat(chat_id=chat_id, db=db)
+async def delete_chat_byID(
+    chat_id: int, 
+    db: Session = Depends(get_db),
+    clerk_id: str = Depends(require_user)
+    ):
+    return delete_chat(chat_id=chat_id, db=db,clerk_id=clerk_id['clerk_id'])
+
+@app.delete("/delete_user/{user_id}")
+async def delete_user_byID(
+    user_id: str,
+    db: Session = Depends(get_db),
+    clerk_id: str = Depends(require_admin)
+):
+    user_to_delete = db.query(User).filter(User.clerk_id == user_id).first()
+    if not user_to_delete:
+        return {"status": "error", "message": "User not found"}
+
+    # 1. Delete from Clerk
+    url = f"https://api.clerk.com/v1/users/{user_to_delete.clerk_id}"
+    headers = {"Authorization": f"Bearer {os.getenv('CLERK_SECRET_KEY')}"}
+    response = requests.delete(url, headers=headers)
+    if response.status_code == 200:
+        print(f"✓ User {user_id} deleted from Clerk successfully")
+    else:
+        print(f"✗ Failed to delete user from Clerk: {response.status_code} {response.text}")
+
+    # 2. Delete all files belonging to this user (Cloudinary + ChromaDB + DB rows)
+    user_files = db.query(File).filter(File.clerk_id == user_to_delete.clerk_id).all()
+    for file in user_files:
+        try:
+            loop = asyncio.get_running_loop()
+            await loop.run_in_executor(None, lambda f=file: delete_file(db, f.id))
+        except Exception as e:
+            print(f"Warning: Failed to delete file {file.id}: {str(e)}")
+
+    # 3. Delete all chats (messages are cascade-deleted via the relationship)
+    user_chats = db.query(Chat).filter(Chat.clerk_id == user_to_delete.clerk_id).all()
+    for chat in user_chats:
+        try:
+            delete_chat(chat_id=chat.id, db=db)
+        except Exception as e:
+            print(f"Warning: Failed to delete chat {chat.id}: {str(e)}")
+
+    # 4. Delete user from DB
+    db.delete(user_to_delete)
+    db.commit()
+
+    return {"status": "success", "message": f"User {user_id} and all associated data deleted"}
+   

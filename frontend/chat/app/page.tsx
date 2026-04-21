@@ -5,7 +5,10 @@ import axios from "axios";
 import { Trash } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 type Section = 'ask' | 'statistics';
-import { useUser } from "@clerk/nextjs";
+import {getToken, useUser } from "@clerk/nextjs";
+import { headers } from "next/headers";
+
+
 
 interface Message {
   id?: number;
@@ -35,6 +38,12 @@ export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const { user } = useUser();
+
+  const getAuthHeaders = async () => {
+        const t = await getToken();
+        if (!t) throw new Error('No token available');
+        return { Authorization: `Bearer ${t}` };
+    };
   
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -50,11 +59,9 @@ export default function Home() {
     try {
 
       
-      
-
-      
-      
-      const res = await axios.get(`${NEXT_API_URL}/chats`);
+      const res = await axios.get(`${NEXT_API_URL}/chats`,
+        {headers: await getAuthHeaders()}
+      );
       setChats(res.data);
     } catch (error) {
       console.log("error in getting the chats", error);
@@ -69,7 +76,9 @@ export default function Home() {
     if (!chatID) return;
     setLoading(true);
     try {
-      const res = await axios.get(`${NEXT_API_URL}/chat/${chatID}`);
+      const res = await axios.get(`${NEXT_API_URL}/chat/${chatID}`,
+        {headers: await getAuthHeaders()}
+      );
       setMessages(res.data);
     } catch (error) {
       console.log("error fetching chat", error);
@@ -86,7 +95,9 @@ export default function Home() {
       const form = new FormData();
       form.append("name", newChatName);
       setChatModel(false);
-      await axios.post(`${NEXT_API_URL}/chat/create_chat`, form);
+      await axios.post(`${NEXT_API_URL}/chat/create_chat`, form,
+        {headers: await getAuthHeaders()}
+      );
       window.location.reload();
     } catch (error) {
       console.log("error creating new chat", error);
@@ -150,7 +161,9 @@ export default function Home() {
   };
 
   const handle_delete_chat = async () => {
-    await axios.delete(`${NEXT_API_URL}/delete/${chattoDelete}`);
+    await axios.delete(`${NEXT_API_URL}/delete/${chattoDelete}`,
+      {headers: await getAuthHeaders()}
+    );
     setChatID("");
   };
 

@@ -1,4 +1,4 @@
-from models import files
+from models import File
 from sqlalchemy.orm import Session
 from config.cloudinary import cloudinary
 from fastapi import UploadFile
@@ -55,9 +55,10 @@ def parse_file(file_path, file_type):
         raise Exception(f"File parsing failed: {str(e)}")
 
 # uploading the file - PG + CHROMA + Cloudinary
-async def upload_file(db: Session, file: UploadFile):
+async def upload_file(db: Session, file: UploadFile,clerk_id: str):
     try:
         print("hi")
+        print("clerk id in upload file function:", clerk_id)  # Debug log to check clerk_id value
         file.file.seek(0)
         # 1. Store file in Cloudinary
         # Using a timeout or specific error handling for network calls
@@ -89,7 +90,8 @@ async def upload_file(db: Session, file: UploadFile):
             resource = "html"
 
         # 4. Save file metadata to Postgres
-        new_file = files(
+        new_file = File(
+            clerk_id=clerk_id['clerk_id'],  # Access the actual clerk_id string from the dependency result
             filename=file.filename,
             file_url=file_url,
             file_type=file_format,
@@ -105,8 +107,8 @@ async def upload_file(db: Session, file: UploadFile):
         try:
             # parse_file is SYNC, so we run it in a thread to prevent blocking the server
             loop = asyncio.get_running_loop()
-            parsed_data = await loop.run_in_executor(None, lambda: parse_file(file_url, resource))
-            
+            parsed_data = await loop.run_in_executor(None, parse_file, file_url, resource)
+
             embeddings = await embed_chunks(parsed_data)
             
             if embeddings:
@@ -128,13 +130,18 @@ def check_chroma_size():
 
 
 # Delete files from PG + CHROMA using file_id created in the PG and stored in the chroma metadata
-def delete_file(db: Session, file_id: int):
+def delete_file(db: Session, file_id: int, clerk_id: str):
     try:
         # 1. Fetch the file record from Postgres
-        file = db.query(files).filter(files.id == file_id).first()
+        file = db.query(File).filter(File.id == file_id).first()
+
+        print("found file: ", file)
 
         if not file:
             raise ValueError(f"File with id {file_id} not found")
+        
+        if file.clerk_id != clerk_id:
+            raise PermissionError("Unauthorized: You do not have permission to delete this file")
 
         # 2. Determine Cloudinary resource type
         # Cloudinary uses 'raw' for PDF, DOCX, and XLSX, and 'image' for photos

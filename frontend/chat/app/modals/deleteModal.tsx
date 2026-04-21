@@ -52,7 +52,6 @@ export default function DeleteModal({ isOpen, onClose, onConfirm, fileID }: Dele
           <button
             onClick={() => {
               onConfirm();
-              onClose();
             }}
             className="flex-1 px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 active:bg-red-800 transition-all font-medium shadow-lg shadow-red-900/20"
           >
