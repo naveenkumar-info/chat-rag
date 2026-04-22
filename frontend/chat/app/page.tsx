@@ -131,7 +131,10 @@ export default function Home() {
       const response = await fetch(`${NEXT_API_URL}/get-answer`, {
         method: "POST",
         body: formdata,
-      });
+        headers: await getAuthHeaders()
+      },
+      
+    );
       if (!response.ok) throw new Error("Failed to connect to server");
 
       const reader = response.body?.getReader();

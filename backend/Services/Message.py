@@ -13,7 +13,8 @@ def save_message(db: Session, chat_id: int, role: str, content: str):
         msg = Message(
             chat_id=chat_id,
             role=role,
-            content=content.strip()
+            content=content.strip(),
+            
         )
 
         # 3. Add to the database and commit the transaction
@@ -58,10 +59,10 @@ def get_chat_history(db: Session, chat_id: int):
 
 from fastapi.responses import StreamingResponse
 
-async def process_chat_stream(chat_id, question, db: Session):
+async def process_chat_stream(chat_id, question, db: Session,clerk_id:dict):
     try:
         # 1. Save user message immediately (while session is definitely open)
-        save_message(db, chat_id, "user", question)
+        save_message(db, chat_id, clerk_id['role'], question)
 
         print("save msg for user")
         
