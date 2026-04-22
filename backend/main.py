@@ -63,8 +63,9 @@ async def ask_question(
     chat_id: int = Form(...),
     question: str = Form(...), 
     db: Session = Depends(get_db),
+    clerk_id: str = Depends(require_user),
 ):
-    return await process_chat_stream(chat_id, question, db)
+    return await process_chat_stream(chat_id, question, db,clerk_id)
 
 
 @app.post("/chat/create_chat")

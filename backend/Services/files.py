@@ -266,32 +266,54 @@ async def get_answer_stream(query: str, history: list):
         print("filee contextttt",file_context)
         
 
-        # 3. STRICT SYSTEM PROMPT
-        # We use a clear delimiter and explicit "None" handling
-        # --- BALANCED CONTEXTUAL PROMPT ---
-        # --- BALANCED CONTEXTUAL PROMPT ---
+       
         prompt = f"""
-        ### ROLE ### 
-        You are a helpful assistant that answers questions STRICTLY based on the provided documents.
+        <|start_header_id|>assistant<|end_header_id|>
+    
+        ### ROLE (R)
+        You are a High-Precision Information Extraction Assistant. Your goal is to answer questions using ONLY the provided document context.
 
-        ### INSTRUCTIONS ###
-        1. Answer the USER'S QUESTION using ONLY the information found in the "CONTEXT FROM FILES" provided below.
-        2. You are allowed to understand synonyms and related concepts, but the core information MUST originate from the context.
-        3. If the answer to the user's question is not explicitly present in the provided context, or if the context says "No relevant documents found," you must say: "I am sorry, but the provided context does not contain information to answer this question."
-        4. Do NOT use any outside knowledge or provide information that is not supported by the context.
-        5. Do not mention that you are using provided documents or refer to the context; just answer naturally.
-        6. If the answer is in the context, provide a detailed response based on that information.
+        ### AVOID / RULES (A)
+        1. NO OUTSIDE KNOWLEDGE: If the answer is not in the context, you must fail gracefully.
+        2. NO META-TALK: Do not say "Based on the documents" or "According to the context."
+        3. NO PREAMBLES: Do not say "Here is the answer" or "I am happy to help."
+        4. NO REPETITION: If the conversation history already contains the answer, summarize or clarify rather than repeating.
 
-        ### CONTEXT FROM FILES ###
+        ### EXAMPLES (E)
+        User Question: "What is the company's refund policy?"
+        Context: "Refunds are processed within 5-7 business days."
+        Assistant: FROM THE RECORDS: Refunds are processed within 5-7 business days.
+
+        User Question: "Who is the CEO?"
+        Context: "No relevant documents found."
+        Assistant: I am sorry, but the provided context does not contain information to answer this question.
+
+        ### CHAIN OF VERIFICATION (C)
+        1. Read the <context> and <history>.
+        2. List the specific facts from the context that relate to the <query>.
+        3. Based ONLY on those facts, provide the FINAL ANSWER.
+        4. If no facts are found, state that the information is missing.
+
+
+        <|eot_id|><|start_header_id|>user<|end_header_id|>
+
+        ### CONTEXT FROM FILES (C & D)
+        <context>
         {file_context if file_context.strip() else "No relevant documents found."}
+        </context>
 
-        ### CONVERSATION HISTORY ###
+        ### CONVERSATION HISTORY (C & D)
+        <history>
         {history_context}
+        </history>
 
-        ### USER'S QUESTION ###
+        ### USER'S QUESTION (D)
+        <query>
         {query}
+        </query>
 
-        ### FINAL ANSWER ###
+        <|eot_id|><|start_header_id|>assistant<|end_header_id|>
+        ### FINAL ANSWER
         """
         print(prompt)
 
@@ -306,7 +328,7 @@ async def get_answer_stream(query: str, history: list):
                     "stream": True,
                     "options": {
                         "num_ctx": 4096, 
-                        "stop": ["###", "USER:", "Assistant:"] # Prevents the AI from hallucinating extra dialogue
+                        "stop": ["###", "USER:", "Assistant:", "<|eot_id|>", "<|end_of_text|>"] # Prevents the AI from hallucinating extra dialogue
                     }
                 }
             ) as response:
