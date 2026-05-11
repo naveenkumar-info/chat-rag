@@ -1,3 +1,4 @@
+ 
 from pyexpat.errors import messages
 
 from fastapi import FastAPI, Form, File, HTTPException, Request, UploadFile, Depends
@@ -14,8 +15,8 @@ import os
 import json
 from svix.webhooks import Webhook
 import requests
-from auth import require_admin,require_user
-
+from auth import require_admin,require_user,get_current_user
+from Services.ragas import test_ragas
 
 # Configure logger for webhook
 logger = logging.getLogger(__name__)
@@ -47,6 +48,15 @@ async def root():
     return {"status": "ok", "message": "API is running"}
 
 # ─── POST METHODS ────────────────────────────────────────────────────────────
+
+@app.post("/test-ragas-interaction")
+async def test_ragas_interaction(
+    chat_id: int = Form(...), 
+    db: Session = Depends(get_db),
+    interaction_id:int=Form()
+):
+    return await test_ragas(chat_id,db,interaction_id)
+    
 
 @app.post("/uploadfile/")
 async def upload_file_DB(
@@ -153,6 +163,7 @@ async def promote_by_ID(
     clerk_id: str = Depends(require_admin)    
 ):
     return promote_user_by_ID(email, db)
+
 
 # ─── GET METHODS ─────────────────────────────────────────────────────────────
 
