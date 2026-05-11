@@ -15,7 +15,7 @@ import httpx
 async def get_embedding(text: str):
     try:
         print("in get emb")
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=None) as client:
             response = await client.post(
                 "http://ollama:11434/api/embed", # 1. Changed from /api/embeddings
                 json={

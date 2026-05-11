@@ -1,6 +1,7 @@
 from models import Chat,Message
 from Services.files import get_answer_stream
 from sqlalchemy.orm import Session
+from fastapi.responses import StreamingResponse
 
 def save_message(db: Session, chat_id: int, role: str, content: str):
     try:
@@ -57,38 +58,47 @@ def get_chat_history(db: Session, chat_id: int):
         # Return an empty list to prevent the calling function from crashing
         return []
 
-from fastapi.responses import StreamingResponse
 
-async def process_chat_stream(chat_id, question, db: Session,clerk_id:dict):
+
+async def process_chat_stream(chat_id, question, db: Session, clerk_id: dict):
     try:
-        # 1. Save user message immediately (while session is definitely open)
-        save_message(db, chat_id, clerk_id['role'], question)
+        # 1. Save user message immediately
+        save_message(db, chat_id, clerk_id['role'], question)      
 
-        print("save msg for user")
+        print("save msg for user", flush=True)
         
         # 2. Get history immediately
         history = get_chat_history(db, chat_id)
 
-        print("get chat his")
+        print("get chat his", flush=True)
+        print("just before stream gen", flush=True)
 
         async def stream_generator():
-            print("stream gen")
+            print("inside stream gen - starting!", flush=True)
             full_answer = ""
-            async for token in get_answer_stream(question, history):
-                print("token : ",token)
-                full_answer += token
-                yield token
             
-            if full_answer:
-                # IMPORTANT: Re-verify session or use a local scoped session if this fails
-                save_message(db, chat_id, "assistant", full_answer)
-
+            try:
+                # The error is happening somewhere inside this loop
+                async for token in get_answer_stream(question, history, db, chat_id):
+                    print(f"token: {token}", flush=True)
+                    full_answer += token
+                    yield token
+                
+                if full_answer:
+                    # IMPORTANT: Re-verify session or use a local scoped session if this fails
+                    save_message(db, chat_id, "assistant", full_answer)
+                    print("Assistant message saved successfully.", flush=True)
+                    
+            except Exception as stream_err:
+                # Catch the error where it actually happens!
+                print(f"Error DURING streaming: {str(stream_err)}", flush=True)
+                yield f"An error occurred while generating the response."
+                
         return StreamingResponse(stream_generator(), media_type="text/event-stream")
 
     except Exception as e:
-        print(f"Initial Error: {str(e)}")
+        print(f"Initial setup error: {str(e)}", flush=True)
         return {"error": str(e)}
-
 
 def delete_chat(chat_id, db: Session,clerk_id:str):
     try:
