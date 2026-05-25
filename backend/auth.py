@@ -1,8 +1,8 @@
 from fastapi import Depends, HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-import jwt
 import os
 from datetime import timedelta
+import jwt
 
 security = HTTPBearer()
 CLERK_JWT_PUBLIC_KEY = os.getenv("CLERK_JWT_PUBLIC_KEY", "").replace("\\n", "\n")

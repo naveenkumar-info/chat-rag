@@ -2,13 +2,15 @@ import chromadb
 import os
 import uuid
 import asyncio
+
+
 class ChromaService:
 
     #init the chromaDB
     def __init__(self):
         try:
             # 1. Initialize the ChromaDB HTTP client
-            host = os.getenv("CHROMA_HOST", "chroma")
+            host = os.getenv("CHROMA_HOST", "localhost")
             port = int(os.getenv("CHROMA_PORT", 8000)) # Ensure port is an integer
             
             self.client = chromadb.HttpClient(
@@ -146,6 +148,7 @@ class ChromaService:
 
     # used during testing
     def delete_all(self):
+
         try:
             # 1. Delete the existing collection
             self.client.delete_collection("file_storage")
@@ -163,3 +166,14 @@ class ChromaService:
             print(f"Error in delete_all method: {str(e)}")
             # Re-raise so the application is aware the operation failed
             raise Exception(f"Failed to clear and reset ChromaDB collection: {str(e)}")
+
+    # Used during testing to know chroma upload / delete are working
+    def check_chroma_size(self):
+        size = self.collection.count()
+
+        return size
+
+    # used during testing - delete all chroma files at once
+    def del_all_chroma(self):
+        self.delete_all()
+

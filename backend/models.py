@@ -18,7 +18,10 @@ class File(Base):
     __tablename__ = "files"
 
     id = Column(Integer, primary_key=True, index=True)
+    alembic_version = Column(String, nullable=False, default="1.0.0")
     clerk_id = Column(String, nullable=False, index=True)
+    total_files_test = Column(Integer, nullable=False, default=10)
+    test_str = Column(String, nullable=False, default="hello")
     filename = Column(String, nullable=False, unique=True, index=True)
     file_url = Column(String, nullable=False)
     file_type = Column(String, nullable=False)

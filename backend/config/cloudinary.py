@@ -1,4 +1,5 @@
 import cloudinary
+import cloudinary.uploader # type: ignore
 from dotenv import load_dotenv
 import os
 
