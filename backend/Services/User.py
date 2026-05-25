@@ -80,8 +80,6 @@ def promote_user_by_ID(email: str, db: Session):
             return {"status": "error", "message": "User not found"}
         ## update in pg
         user.role = "admin"
-        db.commit()
-        db.refresh(user)
 
         ## update in clerk
         url = f"https://api.clerk.com/v1/users/{user.clerk_id}"
@@ -93,6 +91,8 @@ def promote_user_by_ID(email: str, db: Session):
             "public_metadata": {"role": "admin"},
         }
         response = requests.patch(url, json=payload, headers=headers)
+        db.commit()
+        db.refresh(user)
         if response.status_code == 200:
             print(f"✓ User {email} promoted to admin in Clerk")
         else:

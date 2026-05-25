@@ -1,26 +1,24 @@
- 
-from pyexpat.errors import messages
-
 from fastapi import FastAPI, Form, File, HTTPException, Request, UploadFile, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from Services.files import upload_file, delete_file, check_chroma_size, del_all_chroma
-from models import Chat, Message, User, File
-from db import get_db, Base, create_table
-from Services.Message import delete_chat, process_chat_stream
+from Services.Chroma_service import ChromaService
+from Services.files import upload_file, delete_file
+from Services.Chat import delete_chat, process_chat_stream
 from Services.User import handle_user_created,promote_user_by_ID
+from models import Chat, Message, User, File
+from db import get_db
 import asyncio
 import logging
 import os
 import json
 from svix.webhooks import Webhook
-import requests
-from auth import require_admin,require_user,get_current_user
+from auth import require_admin,require_user
 from Services.ragas import test_ragas
 
 # Configure logger for webhook
 logger = logging.getLogger(__name__)
 
+chroma = ChromaService()
 
 # Get Clerk webhook secret from environment
 CLERK_WEBHOOK_SECRET = os.getenv("CLERK_WEBHOOK_SECRET")
@@ -39,9 +37,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.on_event("startup")
-def on_startup():
-    return create_table()
+
 
 @app.get("/")
 async def root():
@@ -189,7 +185,7 @@ async def get_file_size(
     db: Session = Depends(get_db),
     clerk_id: str = Depends(require_admin)
     ):
-    return check_chroma_size()
+    return chroma.check_chroma_size()
 
 
 @app.get("/chats")
@@ -252,7 +248,7 @@ async def get_all_users(
 async def delete_all_chroma(
     clerk_id: str = Depends(require_admin)
 ):
-    return del_all_chroma()
+    return chroma.del_all_chroma()
 
 
 @app.delete("/deletefiles/{file_id}")
@@ -273,45 +269,3 @@ async def delete_chat_byID(
     ):
     return delete_chat(chat_id=chat_id, db=db,clerk_id=clerk_id['clerk_id'])
 
-@app.delete("/delete_user/{user_id}")
-async def delete_user_byID(
-    user_id: str,
-    db: Session = Depends(get_db),
-    clerk_id: str = Depends(require_admin)
-):
-    user_to_delete = db.query(User).filter(User.clerk_id == user_id).first()
-    if not user_to_delete:
-        return {"status": "error", "message": "User not found"}
-
-    # 1. Delete from Clerk
-    url = f"https://api.clerk.com/v1/users/{user_to_delete.clerk_id}"
-    headers = {"Authorization": f"Bearer {os.getenv('CLERK_SECRET_KEY')}"}
-    response = requests.delete(url, headers=headers)
-    if response.status_code == 200:
-        print(f"✓ User {user_id} deleted from Clerk successfully")
-    else:
-        print(f"✗ Failed to delete user from Clerk: {response.status_code} {response.text}")
-
-    # 2. Delete all files belonging to this user (Cloudinary + ChromaDB + DB rows)
-    user_files = db.query(File).filter(File.clerk_id == user_to_delete.clerk_id).all()
-    for file in user_files:
-        try:
-            loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, lambda f=file: delete_file(db, f.id))
-        except Exception as e:
-            print(f"Warning: Failed to delete file {file.id}: {str(e)}")
-
-    # 3. Delete all chats (messages are cascade-deleted via the relationship)
-    user_chats = db.query(Chat).filter(Chat.clerk_id == user_to_delete.clerk_id).all()
-    for chat in user_chats:
-        try:
-            delete_chat(chat_id=chat.id, db=db)
-        except Exception as e:
-            print(f"Warning: Failed to delete chat {chat.id}: {str(e)}")
-
-    # 4. Delete user from DB
-    db.delete(user_to_delete)
-    db.commit()
-
-    return {"status": "success", "message": f"User {user_id} and all associated data deleted"}
-   

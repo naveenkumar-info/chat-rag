@@ -1,494 +1,279 @@
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_core.documents import Document
-from langchain_community.vectorstores import Chroma
-from bs4 import BeautifulSoup
-import pandas as pd
-from docx import Document
-from unstructured.partition.pdf import partition_pdf
-import requests
-from io import BytesIO
-from unstructured.partition.image import partition_image
-
-# Extracting the embedding
+from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
+from models import Chat,Message,Interaction
+from Services.Message import save_message
+from Services.history import format_history,summarize_history,get_chat_history
 import httpx
+import json
+import asyncio
+from Services.embedding import get_embedding
+from Services.Chroma_service import ChromaService
 
-async def get_embedding(text: str):
+chroma = ChromaService()
+
+async def process_chat_stream(chat_id, question, db: Session, clerk_id: dict):
     try:
-        print("in get emb")
+         
+
+        print("save msg for user", flush=True)
+        
+        # 2. Get history immediately
+        history = get_chat_history(db, chat_id)
+
+        print("get chat his", flush=True)
+        print("just before stream gen", flush=True)
+
+        async def stream_generator():
+            print("inside stream gen - starting!", flush=True)
+            full_answer = ""
+            
+            try:
+                # The error is happening somewhere inside this loop
+                async for token in get_answer_stream(question, history, db, chat_id):
+                    print(f"token: {token}", flush=True)
+                    full_answer += token
+                    yield token
+                
+                if full_answer:
+                    
+                    save_message(db, chat_id, clerk_id['role'], question)
+                    save_message(db, chat_id, "assistant", full_answer)
+                    print("Assistant message saved successfully.", flush=True)
+                    
+            except Exception as stream_err:
+                # Catch the error where it actually happens!
+                print(f"Error DURING streaming: {str(stream_err)}", flush=True)
+                yield f"An error occurred while generating the response."
+                
+        return StreamingResponse(stream_generator(), media_type="text/event-stream")
+
+    except Exception as e:
+        print(f"Initial setup error: {str(e)}", flush=True)
+        return {"error": str(e)}
+
+def delete_chat(chat_id, db: Session,clerk_id:str):
+    try:
+        # 1. Fetch the chat record from the database
+        chat_to_delete = db.query(Chat).filter(Chat.id == chat_id).first()
+
+        if not chat_to_delete:
+            print(f"Delete attempt failed: Chat with ID {chat_id} not found")
+            return {"error": "Chat not found"}
+        
+        if chat_to_delete.clerk_id != clerk_id:
+            print(f"Delete attempt failed: User {clerk_id} does not own chat {chat_id}")
+            return {"error": "Access denied to delete this chat"}
+
+        # 2. Delete all messages associated with this chat
+        # Bulk delete is more efficient than individual deletions
+        db.query(Message).filter(Message.chat_id == chat_id).delete()
+
+        # 3. Delete the chat itself
+        db.delete(chat_to_delete)
+
+        # 4. Commit the transaction to apply changes
+        db.commit()
+
+        return {"message": "Chat and all associated messages have been deleted successfully"}
+
+    except Exception as e:
+        # 5. Rollback the database session if any part of the deletion fails
+        db.rollback()
+        print(f"Error in delete_chat: {str(e)}")
+        # Provide a descriptive error for the API layer
+        raise Exception(f"Failed to delete chat and messages: {str(e)}")
+
+
+async def get_standalone_question(query: str, history_context: dict):
+    print("in get standalone question", flush=True)
+    
+    standalone_question_prompt = f"""
+        Based on the conversation history provided, rephrase the latest user query into a standalone question.
+        The standalone question should capture the user's intent and context so that it can be answered correctly without the history.
+        If the user's query is already standalone, return it as is.
+
+        ##RULES
+        - Dont return anything other than the actual answer be formal dont write anything like according to the question.
+        - Dont write "The rephrased standalone question is" or "The latest user query is already a standalone question" or anything like this as a prefix of the actual output.
+
+        ##conversation history:
+        {history_context}
+
+        ##Latest User Query:
+        {query}
+
+        
+    """
+    print("standalone prompt created", flush=True)
+
+    try:
         async with httpx.AsyncClient(timeout=None) as client:
             response = await client.post(
-                "http://ollama:11434/api/embed", # 1. Changed from /api/embeddings
+                "http://ollama:11434/api/generate",
                 json={
-                    "model": "nomic-embed-text",
-                    "input": text # 2. Changed from 'prompt' to 'input'
+                    "model": "llama3.2",
+                    "prompt": standalone_question_prompt,
+                    "stream": False
                 }
             )
             
-            response.raise_for_status()
+            # 1. Check if Ollama returned an error (e.g., 404 Model not found)
+            if response.status_code != 200:
+                print(f"Ollama API Error {response.status_code}: {response.text}", flush=True)
+                return query  # Fallback to the original query
+
             result = response.json()
+            print("result received successfully", flush=True)
             
-            # 3. New API returns a list of embeddings in 'embeddings'
-            if "embeddings" not in result or not result["embeddings"]:
-                raise ValueError("Ollama response does not contain embedding data")
-                
-            # We take the first embedding in the list [0]
-            return result["embeddings"][0]
+            # 2. Safely get the response, fallback to original query if missing
+            return result.get("response", query)
 
-    except Exception as e:
-        print(f"Error in get_embedding: {str(e)}")
-        return None
-
-
-#Cleaning the text
-def clean_text(text):
-    return text.strip().replace("\n"," ")
-  
-#Only including the valid chunks to remove the noise
-def valid_chunk(text):
-    return len(text) > 30
-
-#text splitter
-text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size = 500,
-    chunk_overlap = 50
-)
-
-#Grouping the file text based on the sections before chunking
-
-def group_by_section(elements):
-    try:
-        if not isinstance(elements, list):
-            raise ValueError("Input elements must be a list")
-
-        sections = []
-        current_section = {"title": "General", "content": []}
-
-        for el in elements:
-            # Ensure element has required keys to avoid KeyErrors
-            if "type" not in el or "text" not in el:
-                continue
-
-            if el["type"] in ["Title", "Heading"]:
-                if current_section["content"]:
-                    sections.append(current_section)
-                current_section = {"title": el["text"], "content": []}
-            else:
-                current_section["content"].append(el["text"])
+    # Catch network failures (e.g., connection refused, timeout)
+    except httpx.RequestError as exc:
+        print(f"Network error connecting to Ollama: {exc}", flush=True)
+        return query 
         
-        if current_section["content"]:
-            sections.append(current_section)
-
-        return sections
-
-    except Exception as e:
-        print(f"Error in group_by_section: {str(e)}")
-        return []
-
-#Chunking the file
-def chunk_files(text):
-    try:
-        if not isinstance(text, list):
-            raise ValueError("Input must be a list of sections")
-
-        chunks = []
-
-        for section in text:
-            # Ensure the section has the required keys and content is a list
-            if not all(key in section for key in ["title", "content"]):
-                continue
-            
-            content_list = section.get("content", [])
-            if not isinstance(content_list, list):
-                continue
-
-            full_text = " ".join(content_list)
-            
-            # Splitting text using the external text_splitter object
-            split_text = text_splitter.split_text(full_text)
-
-            for chunk in split_text:
-                chunks.append({
-                    "text": f"Section {section['title']} \n {chunk}",
-                    "metadata": {
-                        "section": section["title"]
-                    }
-                })
-
-        return chunks
-
-    except Exception as e:
-        print(f"Error in chunk_files: {str(e)}")
-        return []
-
-#Embedding all the chunks
-async def embed_chunks(chunks, batch_size=5):
-    try:
-        if not isinstance(chunks, list):
-            raise ValueError("Input chunks must be a list")
-
-        embedded = []
-        for i in range(0, len(chunks), batch_size):
-            batch = chunks[i:i + batch_size]
-
-            for chunk in batch:
-                try:
-                    # Basic key verification
-                    raw_text = chunk.get("text")
-                    if not raw_text:
-                        continue
-
-                    metadata = chunk.get("metadata", {})
-                    text = clean_text(raw_text)
-
-                    if not valid_chunk(text):
-                        continue
-
-                    embedding = await get_embedding(text)
-
-                    embedded.append({
-                        "text": text,
-                        "embedding": embedding,
-                        "metadata": metadata
-                    })
-
-                except Exception as inner_e:
-                    print(f"Error processing individual chunk: {str(inner_e)}")
-                    continue
-
-        return embedded
-
-    except Exception as e:
-        print(f"Error in embed_chunks: {str(e)}")
-        return []
-# PDF
-def parse_pdf(path):
-    try:
-        print("Extracting PDF")
-        res = requests.get(path, timeout=30)
-        res.raise_for_status()
-        print("PDF downloaded")
-
-        file_like = BytesIO(res.content)
-        
-        # Partitioning logic
-        elements = partition_pdf(file=file_like)
-        if not elements:
-            return []
-
-        merged_elements = []
+    # Catch JSON parsing or other unexpected errors
+    except Exception as exc:
+        print(f"Unexpected error in get_standalone_question: {exc}", flush=True)
+        return query
     
-        for el in elements:
-            try:
-                # Ensure element has necessary attributes before processing
-                category = getattr(el, 'category', 'Unknown')
-                text = getattr(el, 'text', '')
-                metadata_obj = getattr(el, 'metadata', None)
-                page_number = getattr(metadata_obj, 'page_number', None) if metadata_obj else None
 
-                if (len(merged_elements) > 0 and 
-                    category == merged_elements[-1]["type"] and 
-                    page_number == merged_elements[-1]["metadata"].get("page_number")):
-                    
-                    merged_elements[-1]["text"] += f" {text}"
-                else:
-                    merged_elements.append({
-                        "type": category,
-                        "text": text,
-                        "metadata": metadata_obj.to_dict() if hasattr(metadata_obj, 'to_dict') else {}
-                    })
-            except Exception as inner_e:
-                print(f"Error processing PDF element: {str(inner_e)}")
-                continue
-
-        return merged_elements
-
-    except Exception as e:
-        print(f"Error in parse_pdf: {str(e)}")
-        return []
-
-# IMAGES
-def parse_image(url):
+async def get_answer_stream(query: str, history: list,db: Session,chat_id: int):
     try:
-        # Request with timeout to prevent hanging
-        res = requests.get(url, timeout=30)
-        res.raise_for_status()
-        file_like = BytesIO(res.content)
-        print("parti img")
-        # Partitioning the image using OCR
-        elements = partition_image(
-            file=file_like,
-            strategy="hi_res",
-            # Changed 'ocr_languages' to 'languages'
-            languages=["eng"], 
-            # Use "eng" (ISO 639-3) rather than "en" for better Tesseract compatibility
-        )
-        print("parti img done")
-        if not elements:
-            return []
+        print("get ans ste")
+        # 1. SMART HISTORY LOGIC (Summarization)
+        if len(history) > 6:
+            old_stuff = history[:-3]
+            recent_stuff = history[-3:]
+            summary = await summarize_history(old_stuff)
+            formatted_recent = format_history(recent_stuff)
+            history_context = f"Summary of previous conversation: {summary}\n\nRecent messages:\n{formatted_recent}"
+        else:
+            history_context = format_history(history)
 
-        merged_elements = []
-        
-        for el in elements:
-            try:
-                # Extract attributes safely to avoid AttributeErrors
-                category = getattr(el, 'category', 'UncategorizedText')
-                text = getattr(el, 'text', '')
-                metadata = getattr(el, 'metadata', None)
-                page_number = getattr(metadata, 'page_number', None) if metadata else None
-                coordinates = getattr(metadata, 'coordinates', None) if metadata else None
+        print("format his")
 
-                if (merged_elements and 
-                    category == merged_elements[-1]["type"] and 
-                    page_number == merged_elements[-1]["metadata"].get("page_number")):
-                    
-                    merged_elements[-1]["text"] += f" {text}"
-                else:
-                    if category != "UncategorizedText":
-                        merged_elements.append({
-                            "type": category,
-                            "text": text,
-                            "metadata": {
-                                "page_number": page_number,
-                                "coordinates": coordinates
-                            }
-                        })
-            except Exception as inner_e:
-                print(f"Error processing image element: {str(inner_e)}")
-                continue
+        ## i have the chat history so i will pass the history and the query to llm and get a standalone question.
+        print("original query : ", query)
+        standalone_question = await get_standalone_question(query, history_context)
+        print("standalone question: ", standalone_question)
 
-        return merged_elements
+        # 2. DATABASE SEARCH (RAG) -> using the new standalone question.
+        query_embedd = await get_embedding(standalone_question)
+        print("embdded")
+        # print("query",query_embedd)
+        loop = asyncio.get_running_loop()
+        # Chroma search
 
-    except Exception as e:
-        print(f"Error in parse_image: {str(e)}")
-        return []
+        results = await loop.run_in_executor(None, lambda: chroma.search(query_embed=query_embedd, top_k=3))
+        print("filee resultsssssss", results)
 
-
-# HTML + #grouping for the html files
-def parse_html(url):
-    try:
-        print(f"Fetching HTML from: {url}")
-        # Added timeout to prevent hanging on slow websites
-        res = requests.get(url, timeout=15)
-        res.raise_for_status()
-        
-        soup = BeautifulSoup(res.text, 'html.parser')
-        
-        # Remove non-content elements
-        for noise in soup(["script", "style", "nav", "footer", "header"]):
-            try:
-                noise.decompose()
-            except Exception:
-                continue
-
-        parsed = []
-        
-        # Extract meaningful content tags
-        for tag in soup.find_all(['h1', 'h2', 'h3', 'h4', 'p', 'li', 'tr']):
-            try:
-                text = tag.get_text(separator=' ').strip()
-                if not text or len(text) < 3:
-                    continue
-                    
-                if tag.name in ['h1', 'h2', 'h3', 'h4']:
-                    category = "Title"
-                elif tag.name == 'tr':
-                    category = "NarrativeText" 
-                    # Format table rows with pipe separators
-                    cells = [td.get_text().strip() for td in tag.find_all(['td', 'th']) if td.get_text().strip()]
-                    if not cells:
-                        continue
-                    text = " | ".join(cells)
-                else:
-                    category = "NarrativeText"
-
-                parsed.append({
-                    "type": category,
-                    "text": text,
-                    "metadata": {
-                        "source": url,
-                        "tag": tag.name,
-                        "filetype": "text/html"
-                    }
-                })
-            except Exception as inner_e:
-                print(f"Error processing HTML tag: {str(inner_e)}")
-                continue
-        
-        return parsed
-
-    except Exception as e:
-        print(f"Error in parse_html: {str(e)}")
-        return []
-
-def group_html_sections(elements):
-    try:
-        if not isinstance(elements, list):
-            raise ValueError("Input elements must be a list")
-
-        sections = []
-        current_section = {"title": "General", "content": []}
-
-        for el in elements:
-            try:
-                # Safely extract tag and text using dict.get()
-                metadata = el.get("metadata", {})
-                tag = metadata.get("tag", "")
-                text = el.get("text", "").strip()
-
-                if not text:
-                    continue
-
-                if tag in ["h1", "h2", "h3", "h4"]:
-                    if current_section["content"]:
-                        sections.append(current_section)
-
-                    current_section = {
-                        "title": text,
-                        "content": []
-                    }
-                else:
-                    current_section["content"].append(text)
+        # Extract metadata separately and clean the text
+        file_contexts = []
+        for r in results:
+            raw_text = r.get("text", "")
+            metadata = r.get("metadata", {})
+            section = metadata.get("section", "")
             
-            except Exception as inner_e:
-                print(f"Error processing HTML element: {str(inner_e)}")
-                continue
+            # Strip the leading "Section <SECTION_NAME>   " prefix from text
+            if section and raw_text.startswith(f"Section {section}"):
+                clean_text = raw_text[len(f"Section {section}"):].strip()
+            else:
+                clean_text = raw_text.strip()
+            
+            file_contexts.append(clean_text)
 
-        if current_section["content"]:
-            sections.append(current_section)
+        file_context = "".join(file_contexts)
+        print("filee contextttt", file_context)
+       
+        prompt = f"""
+        <|start_header_id|>assistant<|end_header_id|>
+    
+        ### ROLE (R)
+        You are a High-Precision Information Extraction Assistant. Your goal is to answer questions using ONLY the provided document context.
 
-        return sections
+        ### AVOID / RULES (A)
+        1. NO OUTSIDE KNOWLEDGE: If the answer is not in the context, you must fail gracefully.
+        2. NO META-TALK: Do not say "Based on the documents" or "According to the context." or"Based on the provided context"
+        3. NO PREAMBLES: Do not say "Here is the answer" or "I am happy to help."
+        4. NO REPETITION: If the conversation history already contains the answer, summarize or clarify rather than repeating.
+        5. Don't write anything prior as a prefix to the actuakl output from your side dont include anything that could increase the noise.
 
-    except Exception as e:
-        print(f"Error in group_html_sections: {str(e)}")
-        return []
+        ### EXAMPLES (E)
+        User Question: "What is the company's refund policy?"
+        Context: "Refunds are processed within 5-7 business days."
+        Assistant:Refunds are processed within 5-7 business days.
+
+        User Question: "Who is the CEO?"
+        Context: "No relevant documents found."
+        Assistant: I am sorry, but the provided context does not contain information to answer this question.
+
+        ### CHAIN OF VERIFICATION (C)
+        1. Read the <context> and <history>.
+        2. List the specific facts from the context that relate to the <query>.
+        3. Based ONLY on those facts, provide the FINAL ANSWER with any prefix write the direct answer.
+        4. If no facts are found, state that the information is missing.
 
 
-#parcse excel + chunking excel
-def parse_excel(url):
-    try:
-        # Request with timeout to prevent hanging
-        res = requests.get(url, timeout=30)
-        res.raise_for_status()
-        
-        file_like = BytesIO(res.content)
-        df = pd.read_excel(file_like)
+        <|eot_id|><|start_header_id|>user<|end_header_id|>
 
-        if df.empty:
-            return []
+        ### CONTEXT FROM FILES (C & D)
+        <context>
+        {file_context if file_context.strip() else "No relevant documents found."}
+        </context>
 
-        parsed = []
+        ### CONVERSATION HISTORY (C & D)
+        <history>
+        {history_context}
+        </history>
 
-        for i, row in df.iterrows():
-            try:
-                row_dict = {}
-                for col, val in row.items():
-                    # Check for non-null values
-                    if pd.notna(val):
-                        # Round numerical values for cleaner strings
-                        if isinstance(val, (float, int)):
-                            val = round(val, 2)
-                        row_dict[str(col)] = val
+        ### USER'S QUESTION (D)
+        <query>
+        {standalone_question}
+        </query>
 
-                if row_dict:
-                    # Construct text representation of the row
-                    row_text = ", ".join([f"{k}: {v}" for k, v in row_dict.items()])
-                    
-                    parsed.append({
-                        "text": row_text,
-                        "metadata": {
-                            "source": url,
-                            "row_index": i,
-                            "filetype": "excel",
-                            **row_dict   
-                        }
-                    })
-            except Exception as inner_e:
-                print(f"Error processing Excel row {i}: {str(inner_e)}")
-                continue
+        <|eot_id|><|start_header_id|>assistant<|end_header_id|>
+        ### FINAL ANSWER
+        """
+        print(prompt)
 
-        return parsed
+        fullanswer = ""
+        # 4. STREAM FROM OLLAMA (Lower Temperature for Strictness)
+        async with httpx.AsyncClient(timeout=None) as client:
+            async with client.stream(
+                "POST", 
+                "http://localhost:11434/api/generate",
+                json={
+                    "model": "llama3.2",
+                    "prompt": prompt,
+                    "stream": True,
+                    "options": {
+                        "num_ctx": 4096, 
+                        "stop": ["###", "USER:", "Assistant:", "<|eot_id|>", "<|end_of_text|>"] # Prevents the AI from hallucinating extra dialogue
+                    }
+                }
+            ) as response:
+                async for line in response.aiter_lines():
+                    if not line: continue
+                    chunk = json.loads(line)
+                    token = chunk.get("response", "")
+                    fullanswer+=token
+                    if token:
+                        yield token
+                    if chunk.get("done"):
 
-    except Exception as e:
-        print(f"Error in parse_excel: {str(e)}")
-        return []
-
-def chunk_excel_rows(elements):
-    try:
-        if not isinstance(elements, list):
-            raise ValueError("Input elements must be a list")
-
-        chunks = []
-
-        for el in elements:
-            try:
-                # Safely extract text and metadata
-                text = el.get("text", "")
-                if not isinstance(text, str) or not text.strip():
-                    continue
-
-                # Ensure metadata exists and is a dictionary before copying
-                raw_metadata = el.get("metadata", {})
-                if not isinstance(raw_metadata, dict):
-                    raw_metadata = {}
-                
-                metadata = raw_metadata.copy()
-
-                chunks.append({
-                    "text": text.strip(),
-                    "metadata": metadata
-                })
-
-            except Exception as inner_e:
-                print(f"Error processing individual excel row: {str(inner_e)}")
-                continue
-
-        return chunks
-
-    except Exception as e:
-        print(f"Error in chunk_excel_rows: {str(e)}")
-        return []
-
-# DOCX
-def parse_docx(url):
-    try:
-        print(f"Downloading DOCX from: {url}")
-        res = requests.get(url, timeout=30)
-        res.raise_for_status()
-        
-        file_like = BytesIO(res.content)
-        doc = Document(file_like)
-        
-        parsed = []
-        
-        for para in doc.paragraphs:
-            try:
-                text = para.text.strip()
-                if not text:
-                    continue
-                    
-                category = "Title" if len(text) < 100 else "NarrativeText"
-                
-                if parsed and parsed[-1]["type"] == "Title" and category == "Title":
-                    # Skip if it's a duplicate of the previous title
-                    if text.lower() == parsed[-1]["text"].lower():
-                        continue 
-                    
-                    parsed[-1]["text"] += f": {text}"
-                else:
-                    parsed.append({
-                        "type": category,
-                        "text": text,
-                        "metadata": {
-                            "source": url,
-                            "filetype": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                        }
-                    })
-            except Exception as inner_e:
-                print(f"Error processing DOCX paragraph: {str(inner_e)}")
-                continue
-        
-        return parsed
+                        ## after the answer is fully streamed, we can store the interaction in the interactions table with the question, answer, and context for future analysis or fine-tuning
+                        db.add(Interaction(
+                            chat_id=chat_id,
+                            question=standalone_question,
+                            context=file_context,
+                            answer=fullanswer    
+                        ))
+                        db.commit()
+                        break
 
     except Exception as e:
-        print(f"Error in parse_docx: {str(e)}")
-        return []
+        print(f"Error in get answer stream: {str(e)}")
+        yield f"[Streaming Error in get answer stream: {str(e)}]"  
+
