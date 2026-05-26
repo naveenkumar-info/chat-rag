@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server";
 
 const isProtectedRoute = createRouteMatcher([
   "/dashboard(.*)",
-  "/", 
+  "/",
 ]);
 
 const isDashboardRoute = createRouteMatcher(["/dashboard(.*)"]);
@@ -13,7 +13,7 @@ const isLoginRoute = createRouteMatcher(["/log-in(.*)"]);
 
 export default clerkMiddleware(async (auth, req: NextRequest) => {
   const { userId, sessionClaims } = await auth();
-  
+
   // Safely get the role
   const userRole = (sessionClaims?.publicMetadata as { role?: string })?.role;
   console.log(userRole);
@@ -38,7 +38,7 @@ export default clerkMiddleware(async (auth, req: NextRequest) => {
 
   // 4. Role-Based Protection Logic
   // Only redirect if we ARE on the wrong path AND we have a valid role to judge by
-  
+
   if (isDashboardRoute(req) && userRole !== "admin") {
     // If not admin, send to home. 
     // IMPORTANT: Only do this if they aren't already being bounced back.
