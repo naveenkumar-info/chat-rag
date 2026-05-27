@@ -14,7 +14,7 @@ def valid_chunk(text):
 @traceable(name="get_embedding",run_type="embedding")
 async def get_embedding(text: str):
     try:
-        print("in get emb")
+        
         async with httpx.AsyncClient(timeout=None) as client:
             response = await client.post(
                 "http://localhost:11434/api/embed", # 1. Changed from /api/embeddings
