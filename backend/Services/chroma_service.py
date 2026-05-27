@@ -2,6 +2,7 @@ import chromadb
 import os
 import uuid
 import asyncio
+from langsmith import traceable
 
 
 class ChromaService:
@@ -90,6 +91,7 @@ class ChromaService:
 
 
  # Inside ChromaService.search
+    @traceable(name="chroma_search",run_type="retriever")
     def search(self, query_embed, top_k=5):
         print("in chroma search")
         try:

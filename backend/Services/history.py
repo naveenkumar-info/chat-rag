@@ -1,8 +1,10 @@
 from models import Message
 from sqlalchemy.orm import Session
 import httpx
+from langsmith import traceable
 
 #formatting the history
+@traceable(name="format_history",run_type="tool")
 def format_history(history: list, max_chars: int = 6000):
     if not history:
         return ""
@@ -29,7 +31,7 @@ def format_history(history: list, max_chars: int = 6000):
     # Flip back to correct chronological order
     return "\n".join(reversed(formatted_parts))
 
-
+@traceable(name="summarize_history",run_type="chain")
 async def summarize_history(old_messages: list):
     if not old_messages:
         return ""
@@ -55,6 +57,7 @@ async def summarize_history(old_messages: list):
         return result.get("response", "Conversation about various topics.")
     
 
+@traceable(name="get_chat_history",run_type="tool")
 def get_chat_history(db: Session, chat_id: int):
     try:
         # 1. Query the database for messages belonging to the chat_id

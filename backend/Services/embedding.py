@@ -1,5 +1,5 @@
 import httpx
-
+from langsmith import traceable
 
 
 #Cleaning the text
@@ -11,7 +11,7 @@ def valid_chunk(text):
     return len(text) > 30
 
 
-
+@traceable(name="get_embedding",run_type="embedding")
 async def get_embedding(text: str):
     try:
         print("in get emb")
