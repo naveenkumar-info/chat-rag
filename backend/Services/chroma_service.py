@@ -33,6 +33,7 @@ class ChromaService:
    
    
     #store the embedd
+    @traceable(name="store in chroma",run_type="tool")
     async def store(self, embed_chunks, file_id):
         try:
             if not embed_chunks:
@@ -61,8 +62,6 @@ class ChromaService:
                     metadata["file_id"] = file_id
                     
                     metadatas.append(metadata)
-                    print("metadata",metadata)
-                    print("and file id is ",file_id)
                     ids.append(str(uuid.uuid4()))
                     
                 except Exception as inner_e:
@@ -93,7 +92,7 @@ class ChromaService:
  # Inside ChromaService.search
     @traceable(name="chroma_search",run_type="retriever")
     def search(self, query_embed, top_k=5):
-        print("in chroma search")
+        
         try:
             results = self.collection.query(
                 query_embeddings=[query_embed],
@@ -108,15 +107,10 @@ class ChromaService:
             distances = results.get("distances", [[]])[0]
             metadatas = results.get("metadatas", [[]])[0]
 
-            print("results,docs",documents)
-            print("results,dis",distances)
-            # print("results,meta",metadatas)
-
             formatted_res = []
-            # Cosine distance: 0.1 is very close, 0.8 is loose.
-            # Let's use 0.9 as a safe "catch-all" for now.
+
             for doc, meta, dis in zip(documents, metadatas, distances):
-                if dis <= 400: 
+                if dis >0.2 : 
                     formatted_res.append({"text": doc, "metadata": meta, "score": dis})
             print("formatted result",formatted_res)
             return formatted_res
@@ -133,14 +127,11 @@ class ChromaService:
                 raise ValueError("file_id is required for deletion")
 
             # 2. Perform the deletion in ChromaDB
-            # ChromaDB filters the metadata when the 'where' clause is used
             self.collection.delete(
                 where={
                     "file_id": file_id
                 }
             )
-            
-            print(f"Successfully deleted records for file_id: {file_id}")
 
         except Exception as e:
             # 3. Standardized error logging
@@ -154,14 +145,12 @@ class ChromaService:
         try:
             # 1. Delete the existing collection
             self.client.delete_collection("file_storage")
-            print("Collection file_storage deleted successfully")
 
             # 2. Re-initialize the collection to ensure the app doesn't crash on next use
             self.collection = self.client.get_or_create_collection(
                 name="file_storage",
                 metadata={"hnsw:space": "cosine"}
             )
-            print("Collection file_storage re-initialized successfully")
 
         except Exception as e:
             # Standardized error logging

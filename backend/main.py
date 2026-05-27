@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Form, File, HTTPException, Request, UploadFile, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from Services.Chroma_service import ChromaService
+from Services.chroma_service import ChromaService
 from Services.files import upload_file, delete_file
 from Services.Chat import delete_chat, process_chat_stream
 from Services.User import handle_user_created,promote_user_by_ID

@@ -15,16 +15,6 @@ async def test_ragas(chat_id,db,interaction_id):
                 "message": "No interaction found"
             }
 
-        print("interaction recieved")
-
-
-
-        print("\n=== RAGAS EVALUATION INPUTS ===")
-        print(f"QUESTION: {repr(interaction.question)}")
-        print(f"ANSWER: {repr(interaction.answer)}")
-        print(f"CONTEXTS: {repr([interaction.context])}")
-        print("===============================\n")
-
         dataset = Dataset.from_list([
             {
                 "question": interaction.question,
@@ -33,9 +23,6 @@ async def test_ragas(chat_id,db,interaction_id):
             }
         ])
 
-        print("dataset formed:", dataset)
-        
-
         OLLAMA_BASE_URL = "http://ollama:11434"
         llm = ChatOllama(model="phi4-mini",base_url=OLLAMA_BASE_URL)
         
@@ -43,8 +30,6 @@ async def test_ragas(chat_id,db,interaction_id):
             model="nomic-embed-text",
             base_url=OLLAMA_BASE_URL
         )
-
-        print("embeddings ready")
 
         # Limit to 1 worker so Ollama doesn't get overwhelmed with concurrent requests.
         # Also give it a huge timeout.
@@ -59,12 +44,6 @@ async def test_ragas(chat_id,db,interaction_id):
             embeddings=embeddings,
             run_config=run_config
         )
-
-        print("metrics calculated")
-        print(result)
-        
-
-
         
         return {
             "message": "Ragas test interaction successful",
