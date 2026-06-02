@@ -48,13 +48,7 @@ export default function Navbar() {
           </div>
         ) : (
           <div className="flex items-center gap-3.5">
-            {/* Link to dashboard files if logged in */}
-            <Link
-              href="/dashboard/files"
-              className="px-3.5 py-1.5 text-[13px] font-medium rounded-lg text-[var(--text-secondary)] border border-[var(--border-subtle)] bg-[var(--surface-1)] hover:bg-[var(--surface-2)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)] transition-all no-underline"
-            >
-              Dashboard
-            </Link>
+
 
             <UserButton
               afterSwitchSessionUrl="/"

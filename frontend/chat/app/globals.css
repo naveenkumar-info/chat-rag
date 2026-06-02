@@ -98,6 +98,20 @@ body {
 .animate-scale-in  { animation: scaleIn 0.2s ease-out; }
 .animate-pulse-subtle { animation: pulse-subtle 2s ease-in-out infinite; }
 
+/* ── Textarea placeholder ── */
+textarea::placeholder,
+input::placeholder {
+  color: var(--text-tertiary);
+  opacity: 1;
+}
+
+/* ── Focus ring override ── */
+textarea:focus,
+input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
 /* Custom scrollbar class kept for backwards compat */
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }

@@ -106,10 +106,6 @@ async def reciprocal_rank_fusion(vector_results: list, bm25_results: list, k: in
     return reranked_docs
 
 
-
-
-
-
 async def hybrid_search(query_embedd, standalone_question: str):
     loop = asyncio.get_running_loop()
 
@@ -357,6 +353,9 @@ async def get_answer_stream(query: str, history: list, db: Session, chat_id: int
 
         #4: HYBRID SEARCH
         loop = asyncio.get_running_loop()
+        #results = await loop.run_in_executor(
+        #None, lambda: chroma.search(query_embed=query_embedd, top_k=5)  # bump to 5
+        #)
         results = await hybrid_search(query_embedd,standalone_question)
 
         #print("finals results are: ",results)

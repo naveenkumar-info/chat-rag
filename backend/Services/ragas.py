@@ -23,7 +23,7 @@ async def test_ragas(chat_id,db,interaction_id):
             }
         ])
 
-        OLLAMA_BASE_URL = "http://ollama:11434"
+        OLLAMA_BASE_URL = "http://localhost:11434"
         llm = ChatOllama(model="phi4-mini",base_url=OLLAMA_BASE_URL)
         
         embeddings = OllamaEmbeddings(
