@@ -78,9 +78,11 @@ class ChromaService:
                         documents=documents,
                         embeddings=embeddings,
                         metadatas=metadatas,
-                        ids=ids
+                        ids=ids,
+                        
                     )
                 )
+                print("Total items in collection:", self.collection.count())
             else:
                 print("No valid data found to add to collection")
 
@@ -89,30 +91,44 @@ class ChromaService:
             raise Exception(f"Failed to store documents in ChromaDB: {str(e)}")
 
 
+    #get all the documents
+    def get_all_collection(self):
+        try:
+            documents = self.collection.get()
+            return documents
+        except Exception as e:
+            print(f"Error in get_all_collection method: {str(e)}")
+            raise Exception(f"Failed to get all collections from ChromaDB: {str(e)}")
+
+
  # Inside ChromaService.search
     @traceable(name="chroma_search",run_type="retriever")
     def search(self, query_embed, top_k=5):
+
+        #print("Total items in collection:", self.collection.count())
         
         try:
             results = self.collection.query(
                 query_embeddings=[query_embed],
                 n_results=top_k
             )
-
-            print(results)
+            #print("----------------------------")
+            #print("results from embed search : ",results)
+            #print("----------------------------")
 
             
 
             documents = results.get("documents", [[]])[0]
             distances = results.get("distances", [[]])[0]
             metadatas = results.get("metadatas", [[]])[0]
+            ids = results.get("ids", [[]])[0]
 
             formatted_res = []
 
-            for doc, meta, dis in zip(documents, metadatas, distances):
+            for doc, meta, dis,id in zip(documents, metadatas, distances,ids):
                 if dis >0.2 : 
-                    formatted_res.append({"text": doc, "metadata": meta, "score": dis})
-            print("formatted result",formatted_res)
+                    formatted_res.append({"text": doc, "metadata": meta, "score": dis,"id":id})
+            #print("formatted result",formatted_res)
             return formatted_res
         except Exception as e:
             print(f"Search Error: {e}")

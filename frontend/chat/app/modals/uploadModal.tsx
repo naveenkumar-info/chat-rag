@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { X, Upload } from 'lucide-react';
+import { X, Upload, FileUp } from 'lucide-react';
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -53,17 +53,22 @@ export default function UploadModal({ isOpen, onClose, onUpload }: UploadModalPr
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-gray-950 border border-gray-800 rounded-lg p-8 max-w-lg w-full mx-4 shadow-2xl">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+      <div className="bg-[var(--surface-1)] border border-[var(--border-default)] rounded-2xl p-6 sm:p-7 max-w-lg w-full mx-4 shadow-2xl animate-scale-in">
         
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-semibold text-white">Upload File</h3>
+          <div>
+            <h3 className="text-[16px] font-semibold text-[var(--text-primary)]">Upload File</h3>
+            <p className="text-[12px] text-[var(--text-tertiary)] mt-0.5">
+              Drag and drop or browse to upload
+            </p>
+          </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors p-1 hover:bg-gray-800 rounded-md"
+            className="w-7 h-7 flex items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-3)] transition-all"
           >
-            <X size={24} />
+            <X size={16} />
           </button>
         </div>
 
@@ -73,10 +78,12 @@ export default function UploadModal({ isOpen, onClose, onUpload }: UploadModalPr
           onDragLeave={handleDrag}
           onDragOver={handleDrag}
           onDrop={handleDrop}
-          className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-all mb-6 ${
+          className={`relative border-2 border-dashed rounded-xl p-8 sm:p-10 text-center transition-all duration-200 mb-6 ${
             dragActive
-              ? 'border-white bg-gray-800/40 ring-2 ring-white/10'
-              : 'border-gray-700 bg-gray-900/50 hover:border-gray-600'
+              ? 'border-[var(--accent)] bg-[var(--accent-glow)]'
+              : selectedFile
+                ? 'border-[var(--border-strong)] bg-[var(--surface-2)]'
+                : 'border-[var(--border-default)] bg-[var(--surface-0)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-2)]'
           }`}
         >
           <input
@@ -87,36 +94,58 @@ export default function UploadModal({ isOpen, onClose, onUpload }: UploadModalPr
           />
           
           <label htmlFor="file-input" className="cursor-pointer block">
-            <Upload 
-              size={48} 
-              className={`mx-auto mb-4 transition-colors ${dragActive ? 'text-white' : 'text-gray-600'}`} 
-            />
-            <p className="text-white font-medium mb-2">
-              {selectedFile ? selectedFile.name : 'Drag and drop your file here'}
-            </p>
-            <p className="text-gray-400 text-sm">
-              {selectedFile 
-                ? `${(selectedFile.size / 1024 / 1024).toFixed(2)} MB` 
-                : 'or click to browse'}
-            </p>
+            <div className={`w-12 h-12 mx-auto mb-4 rounded-xl flex items-center justify-center transition-all ${
+              dragActive
+                ? 'bg-[var(--accent-muted)]'
+                : 'bg-[var(--surface-3)] border border-[var(--border-default)]'
+            }`}>
+              {selectedFile ? (
+                <FileUp size={22} className="text-[var(--accent)]" />
+              ) : (
+                <Upload 
+                  size={22} 
+                  className={`transition-colors ${dragActive ? 'text-[var(--accent)]' : 'text-[var(--text-tertiary)]'}`} 
+                />
+              )}
+            </div>
+
+            {selectedFile ? (
+              <>
+                <p className="text-[14px] font-medium text-[var(--text-primary)] mb-1 truncate max-w-xs mx-auto">
+                  {selectedFile.name}
+                </p>
+                <p className="text-[12px] text-[var(--text-tertiary)]">
+                  {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-[14px] font-medium text-[var(--text-primary)] mb-1">
+                  Drop your file here
+                </p>
+                <p className="text-[12px] text-[var(--text-tertiary)]">
+                  or click to browse from your device
+                </p>
+              </>
+            )}
           </label>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-4">
+        <div className="flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition-colors font-medium"
+            className="flex-1 h-10 rounded-lg border border-[var(--border-default)] text-[var(--text-secondary)] text-[13px] font-medium hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)] transition-all"
           >
             Cancel
           </button>
           <button
             onClick={uploadfileHandler}
             disabled={!selectedFile}
-            className={`flex-1 px-4 py-2 rounded-lg font-medium transition-all ${
+            className={`flex-1 h-10 rounded-lg text-[13px] font-medium transition-all duration-200 ${
               selectedFile
-                ? 'bg-white text-black hover:bg-gray-200 active:scale-95'
-                : 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                ? 'bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] shadow-sm shadow-[var(--accent-muted)]'
+                : 'bg-[var(--surface-3)] text-[var(--text-tertiary)] cursor-not-allowed border border-[var(--border-subtle)]'
             }`}
           >
             Upload

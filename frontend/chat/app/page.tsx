@@ -4,9 +4,9 @@ import Navbar from "@/component/Navbar";
 import axios from "axios";
 import { Trash } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
-type Section = 'ask' | 'statistics';
+
 import {getToken, useUser } from "@clerk/nextjs";
-import { headers } from "next/headers";
+
 
 
 
@@ -28,7 +28,7 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState<Section>("ask");
+
   const [chats, setChats] = useState<Chats[]>([]);
   const [chatID, setChatID] = useState("");
   const [chatModel, setChatModel] = useState(false);
@@ -441,14 +441,14 @@ export default function Home() {
 
           <div className="flex-1 min-w-0">
             <h2 className="text-xs sm:text-sm font-semibold text-gray-300 uppercase tracking-widest truncate">
-              {activeTab === "ask" ? "Intelligence Portal" : "Analytics Engine"}
+              Intelligence Portal
             </h2>
             <p className="text-[9px] sm:text-[10px] text-gray-500 mt-0.5">Model: Llama 3.2 (Local)</p>
           </div>
         </header>
 
         <main className="flex-1 overflow-hidden">
-          {activeTab === "ask" ? renderChatSection() : <div>Analytics Content</div>}
+          {renderChatSection()}
         </main>
       </div>
 
