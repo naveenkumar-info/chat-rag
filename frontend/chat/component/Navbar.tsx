@@ -7,47 +7,64 @@ export default function Navbar() {
   const { isLoaded, isSignedIn } = useAuth();
 
   return (
-    <nav className="flex items-center justify-between px-6 md:px-10 h-16 bg-[#060d1a] border-b border-[#1a2d4a]">
+    <nav className="sticky top-0 z-50 flex items-center justify-between px-6 md:px-10 h-16 bg-[var(--surface-0)]/90 backdrop-blur-md border-b border-[var(--border-subtle)] animate-slide-down">
 
-      {/* Brand */}
-      <Link href="/" className="flex items-center gap-2 no-underline">
-        <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center">
-          <span className="text-white text-xs font-semibold font-mono">A</span>
+      {/* Brand Logo & Name */}
+      <Link href="/" className="flex items-center gap-2.5 no-underline group">
+        <div className="w-8 h-8 rounded-lg bg-[var(--accent-muted)] border border-[var(--accent)]/25 flex items-center justify-center transition-all duration-300 group-hover:border-[var(--accent)]/50 group-hover:shadow-[0_0_12px_rgba(99,102,241,0.2)]">
+          <span className="text-[var(--accent-hover)] text-xs font-bold font-mono tracking-wider">FI</span>
         </div>
-        <span className="text-slate-200 text-sm font-medium tracking-wide">AI Insights</span>
+        <div className="flex flex-col">
+          <span className="text-[var(--text-primary)] text-sm font-semibold tracking-tight leading-none transition-colors duration-200 group-hover:text-white">
+            Files Insight
+          </span>
+          <span className="text-[10px] text-[var(--text-tertiary)] tracking-wider uppercase mt-0.5 font-medium">
+            AI Platform
+          </span>
+        </div>
       </Link>
 
-      {/* Right side */}
-      <div className="flex items-center gap-3">
+      {/* Action Area */}
+      <div className="flex items-center gap-4">
         {!isLoaded ? (
-          <div className="w-8 h-8 rounded-full bg-blue-500/10 animate-pulse" />
+          <div className="w-8 h-8 rounded-full border border-[var(--border-subtle)] bg-[var(--surface-2)] animate-pulse" />
         ) : !isSignedIn ? (
-          <>
-            {/* Log In — custom /log-in page */}
+          <div className="flex items-center gap-3">
+            {/* Custom /log-in link */}
             <Link
               href="/log-in"
-              className="px-4 py-2 text-sm font-medium text-blue-300 border border-blue-500/30 rounded-lg bg-transparent hover:bg-blue-500/10 transition-colors no-underline"
+              className="px-3.5 py-1.5 text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors no-underline"
             >
               Log in
             </Link>
 
-            {/* Get Started — custom /sign-up page */}
+            {/* Custom /sign-up button */}
             <Link
               href="/sign-up"
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-500 border border-blue-500 rounded-lg transition-colors no-underline"
+              className="px-4 py-2 text-[13px] font-medium text-white bg-[var(--accent)] hover:bg-[var(--accent-hover)] border border-[var(--accent)]/10 rounded-lg shadow-sm shadow-[var(--accent-muted)] transition-all duration-200 no-underline hover:scale-[1.02] active:scale-[0.98]"
             >
               Get Started
             </Link>
-          </>
+          </div>
         ) : (
-          <UserButton
-            afterSwitchSessionUrl="/"
-            appearance={{
-              elements: {
-                avatarBox: "w-8 h-8 ring-2 ring-blue-500 ring-offset-2 ring-offset-[#060d1a] rounded-full",
-              },
-            }}
-          />
+          <div className="flex items-center gap-3.5">
+            {/* Link to dashboard files if logged in */}
+            <Link
+              href="/dashboard/files"
+              className="px-3.5 py-1.5 text-[13px] font-medium rounded-lg text-[var(--text-secondary)] border border-[var(--border-subtle)] bg-[var(--surface-1)] hover:bg-[var(--surface-2)] hover:text-[var(--text-primary)] hover:border-[var(--border-default)] transition-all no-underline"
+            >
+              Dashboard
+            </Link>
+
+            <UserButton
+              afterSwitchSessionUrl="/"
+              appearance={{
+                elements: {
+                  avatarBox: "w-8 h-8 ring-2 ring-[var(--accent)]/30 ring-offset-2 ring-offset-[var(--surface-0)] rounded-full hover:ring-[var(--accent)]/60 transition-all",
+                },
+              }}
+            />
+          </div>
         )}
       </div>
     </nav>

@@ -14,38 +14,38 @@ export default function DeleteModal({ isOpen, onClose, onConfirm, fileID }: Dele
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-gray-950 border border-gray-800 rounded-lg p-8 max-w-sm w-full mx-4 shadow-2xl animate-in fade-in zoom-in duration-200">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+      <div className="bg-[var(--surface-1)] border border-[var(--border-default)] rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl animate-scale-in">
         
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-red-500/10 rounded-lg">
-              <AlertTriangle className="text-red-500" size={20} />
+            <div className="w-9 h-9 rounded-xl bg-[var(--danger-muted)] flex items-center justify-center">
+              <AlertTriangle size={17} className="text-[var(--danger)]" />
             </div>
-            <h3 className="text-xl font-semibold text-white">Delete File</h3>
+            <h3 className="text-[16px] font-semibold text-[var(--text-primary)]">Delete File</h3>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white transition-colors p-1 hover:bg-gray-800 rounded-md"
+            className="w-7 h-7 flex items-center justify-center rounded-md text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-3)] transition-all"
           >
-            <X size={24} />
+            <X size={16} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="mb-8">
-          <p className="text-gray-300 leading-relaxed">
-            Are you sure you want to delete <span className="text-white font-medium">this file</span>? 
-            This action cannot be undone.
+        <div className="mb-6">
+          <p className="text-[13px] text-[var(--text-secondary)] leading-relaxed">
+            Are you sure you want to delete <span className="text-[var(--text-primary)] font-medium">this file</span>? 
+            This action cannot be undone and the file will be permanently removed.
           </p>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-4">
+        <div className="flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition-colors font-medium"
+            className="flex-1 h-10 rounded-lg border border-[var(--border-default)] text-[var(--text-secondary)] text-[13px] font-medium hover:bg-[var(--surface-3)] hover:text-[var(--text-primary)] transition-all"
           >
             Cancel
           </button>
@@ -53,7 +53,7 @@ export default function DeleteModal({ isOpen, onClose, onConfirm, fileID }: Dele
             onClick={() => {
               onConfirm();
             }}
-            className="flex-1 px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 active:bg-red-800 transition-all font-medium shadow-lg shadow-red-900/20"
+            className="flex-1 h-10 rounded-lg bg-[var(--danger)] text-white text-[13px] font-medium hover:brightness-110 transition-all shadow-sm shadow-[var(--danger-muted)]"
           >
             Delete
           </button>
